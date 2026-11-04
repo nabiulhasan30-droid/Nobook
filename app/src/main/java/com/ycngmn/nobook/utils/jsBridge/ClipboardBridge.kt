@@ -17,6 +17,21 @@ import java.io.FileOutputStream
 
 class ClipboardBridge(private val context: Context) {
     @JavascriptInterface
+    fun copyTextToClipboard(text: String) {
+        if (text.isBlank()) return
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            runCatching {
+                val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Facebook Post", text)
+                clipboardManager.setPrimaryClip(clip)
+                Toast.makeText(context, "লেখা কপি করা হয়েছে!", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                it.printStackTrace()
+            }
+        }
+    }
+
+    @JavascriptInterface
     fun copyImageToClipboard(base64Data: String, mimeType: String) {
         runCatching {
             if (!base64Data.contains(",")) {

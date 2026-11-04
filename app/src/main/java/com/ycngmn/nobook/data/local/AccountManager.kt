@@ -73,11 +73,26 @@ class AccountManager(context: Context) {
     }
 
     /**
-     * Extracts user ID from CookieManager if available
+     * Extracts full combined cookies from CookieManager across facebook domains.
+     */
+    fun getAllCookies(): String {
+        val cookieManager = CookieManager.getInstance()
+        val c1 = cookieManager.getCookie("https://facebook.com") ?: ""
+        val c2 = cookieManager.getCookie("https://m.facebook.com") ?: ""
+        val c3 = cookieManager.getCookie("https://.facebook.com") ?: ""
+        val set = linkedSetOf<String>()
+        (c1.split(";") + c2.split(";") + c3.split(";")).forEach {
+            val trimmed = it.trim()
+            if (trimmed.isNotEmpty()) set.add(trimmed)
+        }
+        return set.joinToString("; ")
+    }
+
+    /**
+     * Extracts user ID (c_user) from CookieManager if available
      */
     fun getCurrentUserId(): String? {
-        val cookieManager = CookieManager.getInstance()
-        val cookies = cookieManager.getCookie("https://.facebook.com") ?: ""
+        val cookies = getAllCookies()
         return cookies.split(";")
             .map { it.trim() }
             .firstOrNull { it.startsWith("c_user=") }
@@ -85,11 +100,26 @@ class AccountManager(context: Context) {
     }
 
     /**
+     * Injects cookies into CookieManager and flushes them to disk.
+     */
+    fun restoreCookies(cookiesStr: String) {
+        val cookieManager = CookieManager.getInstance()
+        val list = cookiesStr.split(";")
+        for (c in list) {
+            val trimmed = c.trim()
+            if (trimmed.isNotEmpty()) {
+                cookieManager.setCookie("https://facebook.com", "$trimmed; Domain=.facebook.com; Path=/; Secure")
+                cookieManager.setCookie("https://m.facebook.com", "$trimmed; Domain=.facebook.com; Path=/; Secure")
+            }
+        }
+        cookieManager.flush()
+    }
+
+    /**
      * Captures current active session from CookieManager and saves it.
      */
     fun saveCurrentSession(customName: String? = null): AccountProfile? {
-        val cookieManager = CookieManager.getInstance()
-        val cookies = cookieManager.getCookie("https://.facebook.com") ?: ""
+        val cookies = getAllCookies()
         if (cookies.isBlank()) return null
 
         val cUser = getCurrentUserId() ?: return null
@@ -108,6 +138,7 @@ class AccountManager(context: Context) {
         )
         saveAccount(profile)
         setActiveAccountId(cUser)
+        CookieManager.getInstance().flush()
         return profile
     }
 
@@ -115,19 +146,11 @@ class AccountManager(context: Context) {
      * Switches to the given account by restoring its cookies into CookieManager.
      */
     fun switchToAccount(account: AccountProfile, onComplete: () -> Unit) {
-        // Save current session first if logged in
         saveCurrentSession()
 
         val cookieManager = CookieManager.getInstance()
         cookieManager.removeAllCookies {
-            val list = account.cookies.split(";")
-            for (c in list) {
-                val trimmed = c.trim()
-                if (trimmed.isNotEmpty()) {
-                    cookieManager.setCookie("https://.facebook.com", "$trimmed; Domain=.facebook.com; Path=/; Secure")
-                }
-            }
-            cookieManager.flush()
+            restoreCookies(account.cookies)
             setActiveAccountId(account.id)
             onComplete()
         }

@@ -35,6 +35,7 @@ import com.multiplatform.webview.web.WebView
 import com.multiplatform.webview.web.rememberSaveableWebViewState
 import com.multiplatform.webview.web.rememberWebViewNavigator
 import com.ycngmn.nobook.R
+import com.ycngmn.nobook.data.local.AccountManager
 import com.ycngmn.nobook.ui.components.NetworkErrorDialog
 import com.ycngmn.nobook.ui.components.accounts.AccountSwitcherSheet
 import com.ycngmn.nobook.ui.components.settings.SettingsDialog
@@ -169,6 +170,11 @@ fun NobookWebView(
 
     LaunchedEffect(loadingState, userScripts) {
         if (loadingState is LoadingState.Finished) {
+            runCatching {
+                val accountManager = AccountManager(context)
+                accountManager.saveCurrentSession()
+                CookieManager.getInstance().flush()
+            }
             userScripts?.let { scripts ->
                 navigator.evaluateJavaScript(scripts) {
                     isLoading = false
@@ -272,10 +278,20 @@ fun NobookWebView(
         captureBackPresses = false,
         onCreated = { webView ->
 
+            val accountManager = AccountManager(context)
             val cookieManager = CookieManager.getInstance()
             cookieManager.setAcceptCookie(true)
             cookieManager.setAcceptThirdPartyCookies(webView, true)
-            cookieManager.flush()
+
+            // Ensure last active account is restored so app opens with last logged-in account
+            val activeId = accountManager.getActiveAccountId()
+            val accounts = accountManager.getAccounts()
+            val activeAcc = accounts.firstOrNull { it.id == activeId } ?: accounts.maxByOrNull { it.lastActive }
+            if (activeAcc != null && activeAcc.cookies.isNotBlank()) {
+                accountManager.restoreCookies(activeAcc.cookies)
+            } else {
+                cookieManager.flush()
+            }
 
             state.webSettings.apply {
                 isJavaScriptEnabled = true
