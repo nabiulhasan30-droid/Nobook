@@ -1,6 +1,7 @@
 package com.ycngmn.nobook.ui.components.settings
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BurstMode
@@ -17,8 +20,10 @@ import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Diversity1
 import androidx.compose.material.icons.filled.EmojiPeople
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Padding
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Try
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -51,10 +56,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.net.toUri
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ycngmn.nobook.R
+import com.ycngmn.nobook.data.model.FontPresets
 import com.ycngmn.nobook.ui.theme.FacebookBlue
 import com.ycngmn.nobook.ui.viewmodel.SettingsViewModel
+import com.ycngmn.nobook.utils.BiometricHelper
 import com.ycngmn.nobook.utils.rememberAutoDesktop
 
 @Composable
@@ -65,8 +73,11 @@ fun SettingsContent(
     val context = LocalContext.current
     var isOpenDialog by rememberSaveable { mutableStateOf(false) }
     var isOpenFontDialog by rememberSaveable { mutableStateOf(false) }
+    var isOpenFontFamilyDialog by rememberSaveable { mutableStateOf(false) }
 
     val fontScale = viewModel.fontScale.collectAsState()
+    val fontFamily = viewModel.fontFamily.collectAsState()
+    val biometricLock = viewModel.biometricLock.collectAsState()
     val removeAds = viewModel.removeAds.collectAsState()
     val enableDownloadContent = viewModel.enableDownloadContent.collectAsState()
     val enableCopyToClipboard = viewModel.enableCopyToClipboard.collectAsState()
@@ -111,6 +122,42 @@ fun SettingsContent(
                     supportingText = stringResource(R.string.customize_feed),
                     isActive = null,
                     onClick = { isOpenDialog = true },
+                ),
+                SettingsItem(
+                    icon = Icons.Filled.Fingerprint,
+                    title = stringResource(R.string.biometric_lock_title),
+                    supportingText = stringResource(R.string.biometric_lock_description),
+                    isActive = biometricLock.value,
+                    onClick = {
+                        val willEnable = !biometricLock.value
+                        if (willEnable) {
+                            if (!BiometricHelper.canAuthenticate(context)) {
+                                Toast.makeText(
+                                    context,
+                                    "ফোনে কোনো ফিঙ্গারপ্রিন্ট বা লক স্ক্রিন সক্রিয় নেই!",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                (context as? FragmentActivity)?.let { activity ->
+                                    BiometricHelper.showBiometricPrompt(
+                                        activity = activity,
+                                        title = "ফিঙ্গারপ্রিন্ট যাচাই করুন",
+                                        subtitle = "অ্যাপ লক চালু করতে আঙ্গুলের ছাপ দিন",
+                                        onSuccess = {
+                                            viewModel.setBiometricLock(true)
+                                            Toast.makeText(context, "ফিঙ্গারপ্রিন্ট লক সফলভাবে চালু হয়েছে!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onError = {
+                                            Toast.makeText(context, "যাচাইকরণ ব্যর্থ হয়েছে!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            }
+                        } else {
+                            viewModel.setBiometricLock(false)
+                            Toast.makeText(context, "ফিঙ্গারপ্রিন্ট লক বন্ধ করা হয়েছে", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 )
             )
         )
@@ -123,6 +170,13 @@ fun SettingsContent(
                     supportingText = "${fontScale.value}% - " + stringResource(R.string.font_size_description),
                     isActive = null,
                     onClick = { isOpenFontDialog = true },
+                ),
+                SettingsItem(
+                    icon = Icons.Filled.TextFields,
+                    title = stringResource(R.string.font_family_title),
+                    supportingText = FontPresets.getById(fontFamily.value).nameBn,
+                    isActive = null,
+                    onClick = { isOpenFontFamilyDialog = true },
                 ),
                 SettingsItem(
                     icon = Icons.Outlined.Pinch,
@@ -198,6 +252,108 @@ fun SettingsContent(
         )
     }
 
+    if (isOpenFontFamilyDialog) {
+        FontFamilyDialog(
+            currentFamily = fontFamily.value,
+            onSelectFamily = {
+                viewModel.setFontFamily(it)
+                Toast.makeText(context, "ফন্ট সফলভাবে প্রয়োগ করা হয়েছে!", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { isOpenFontFamilyDialog = false }
+        )
+    }
+
+}
+
+@Composable
+private fun FontFamilyDialog(
+    currentFamily: String,
+    onSelectFamily: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(color = MaterialTheme.colorScheme.surfaceContainer)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "ফেসবুক ফন্ট নির্বাচন করুন",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Text(
+                text = "আপনার পছন্দের ফন্ট স্টাইল নির্বাচন করুন, সরাসরি ফেসবুকে প্রয়োগ হবে:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(FontPresets.options, key = { it.id }) { option ->
+                    val isSelected = currentFamily == option.id
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isSelected) FacebookBlue.copy(alpha = 0.15f)
+                                else Color.Transparent
+                            )
+                            .clickable {
+                                onSelectFamily(option.id)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = option.nameBn,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (isSelected) FacebookBlue else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = FacebookBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = option.previewText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("বাতিল", color = FacebookBlue)
+                }
+            }
+        }
+    }
 }
 
 @Composable

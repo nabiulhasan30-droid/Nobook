@@ -187,6 +187,26 @@
   }
 })();
 
+// Dynamic Custom Font Family Injection
+(() => {
+  window.applyFacebookFont = function(fontCss, importUrl) {
+    if (!fontCss) return;
+    let styleEl = document.getElementById('fbn-custom-font-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'fbn-custom-font-style';
+      (document.head || document.documentElement).appendChild(styleEl);
+    }
+    const importRule = (importUrl && importUrl !== 'null') ? `@import url('${importUrl}');\n` : '';
+    styleEl.textContent = `
+      ${importRule}
+      body, html, div, span, p, a, input, button, textarea, article, h1, h2, h3, h4, h5, h6 {
+        font-family: ${fontCss} !important;
+      }
+    `;
+  };
+})();
+
 // Enhance Loading Overlay Script
 (function() {
     function applyOverlayStyle() {

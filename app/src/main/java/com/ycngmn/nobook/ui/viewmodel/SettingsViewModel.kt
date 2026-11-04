@@ -5,9 +5,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ycngmn.nobook.data.local.SettingsDataStore
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.AMOLED_BLACK
+import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.BIOMETRIC_LOCK
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.DESKTOP_LAYOUT
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.ENABLE_COPY_TO_CLIPBOARD
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.ENABLE_DOWNLOAD_CONTENT
+import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.FONT_FAMILY
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.FONT_SCALE
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.HIDE_GROUPS
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.HIDE_PEOPLE_YOU_MAY_KNOW
@@ -76,6 +78,16 @@ class SettingsViewModel(
     val fontScale = dataStore.fontScale.stateIn(
         scope = viewModelScope,
         initialValue = initialPrefs[FONT_SCALE] ?: 100,
+        started = SharingStarted.WhileSubscribed()
+    )
+    val biometricLock = dataStore.biometricLock.stateIn(
+        scope = viewModelScope,
+        initialValue = initialPrefs[BIOMETRIC_LOCK] ?: false,
+        started = SharingStarted.WhileSubscribed()
+    )
+    val fontFamily = dataStore.fontFamily.stateIn(
+        scope = viewModelScope,
+        initialValue = initialPrefs[FONT_FAMILY] ?: "default",
         started = SharingStarted.WhileSubscribed()
     )
     val hideSuggested = dataStore.hideSuggested.stateIn(
@@ -160,6 +172,18 @@ class SettingsViewModel(
     fun setFontScale(scale: Int) {
         viewModelScope.launch {
             dataStore.setFontScale(scale)
+        }
+    }
+
+    fun setBiometricLock(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.setBiometricLock(enabled)
+        }
+    }
+
+    fun setFontFamily(family: String) {
+        viewModelScope.launch {
+            dataStore.setFontFamily(family)
         }
     }
 

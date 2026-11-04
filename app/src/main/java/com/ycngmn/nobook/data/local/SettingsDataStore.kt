@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.map
@@ -28,6 +29,8 @@ class SettingsDataStore(private val context: Context) {
         val HIDE_GROUPS = booleanPreferencesKey("hide_groups")
         val isRevertDesktop = booleanPreferencesKey("is_revert_desktop")
         val FONT_SCALE = intPreferencesKey("font_scale")
+        val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock")
+        val FONT_FAMILY = stringPreferencesKey("font_family")
     }
 
     val prefs = context.dataStore.data
@@ -80,6 +83,16 @@ class SettingsDataStore(private val context: Context) {
     val fontScale = context.dataStore.data.map { it[FONT_SCALE] ?: 100 }
     suspend fun setFontScale(scale: Int) {
         context.dataStore.edit { it[FONT_SCALE] = scale }
+    }
+
+    val biometricLock = context.dataStore.data.map { it[BIOMETRIC_LOCK] ?: false }
+    suspend fun setBiometricLock(enabled: Boolean) {
+        context.dataStore.edit { it[BIOMETRIC_LOCK] = enabled }
+    }
+
+    val fontFamily = context.dataStore.data.map { it[FONT_FAMILY] ?: "default" }
+    suspend fun setFontFamily(family: String) {
+        context.dataStore.edit { it[FONT_FAMILY] = family }
     }
 
     val hideSuggested = context.dataStore.data.map { it[HIDE_SUGGESTED] ?: false }

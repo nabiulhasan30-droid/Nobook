@@ -36,6 +36,7 @@ import com.multiplatform.webview.web.rememberSaveableWebViewState
 import com.multiplatform.webview.web.rememberWebViewNavigator
 import com.ycngmn.nobook.R
 import com.ycngmn.nobook.data.local.AccountManager
+import com.ycngmn.nobook.data.model.FontPresets
 import com.ycngmn.nobook.ui.components.NetworkErrorDialog
 import com.ycngmn.nobook.ui.components.accounts.AccountSwitcherSheet
 import com.ycngmn.nobook.ui.components.settings.SettingsDialog
@@ -177,6 +178,7 @@ fun NobookWebView(
             }
             userScripts?.let { scripts ->
                 navigator.evaluateJavaScript(scripts) {
+                    applyCustomFont()
                     isLoading = false
                 }
             }
@@ -254,6 +256,20 @@ fun NobookWebView(
         runCatching {
             state.nativeWebView.settings.textZoom = fontScale
         }
+    }
+
+    val fontFamily by settingsVM.fontFamily.collectAsState()
+    fun applyCustomFont() {
+        val option = FontPresets.getById(fontFamily)
+        val importParam = if (option.importUrl != null) "\"${option.importUrl}\"" else "null"
+        val js = "window.applyFacebookFont && window.applyFacebookFont(\"${option.fontCss}\", $importParam);"
+        runCatching {
+            state.nativeWebView.evaluateJavascript(js, null)
+        }
+    }
+
+    LaunchedEffect(fontFamily) {
+        applyCustomFont()
     }
 
     LaunchedEffect(isDesktop) {

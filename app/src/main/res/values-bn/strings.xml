@@ -31,4 +31,8 @@
     <string name="nobook_settings">Facebook N সেটিংস</string>
     <string name="font_size_title">ফন্ট সাইজ (লেখার আকার)</string>
     <string name="font_size_description">ফেসবুকের লেখার আকার বড় বা ছোট করুন</string>
+    <string name="biometric_lock_title">ফিঙ্গারপ্রিন্ট লক (অ্যাপ লক)</string>
+    <string name="biometric_lock_description">অ্যাপ খোলার সময় ফিঙ্গারপ্রিন্ট বা লক স্ক্রিন চাইবে</string>
+    <string name="font_family_title">ফন্ট পরিবর্তন (Font Style)</string>
+    <string name="font_family_description">ফেসবুকের ফন্ট ও বাংলা লেখার স্টাইল পরিবর্তন করুন</string>
 </resources>
