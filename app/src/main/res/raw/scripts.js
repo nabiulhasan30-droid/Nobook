@@ -253,9 +253,16 @@ observer.observe(document.body, { childList: true, subtree: true });
 
   onReady(() => {
     const BUTTON_ID = 'custom-settings-btn';
+    const ACCOUNT_BTN_ID = 'custom-account-btn';
+
     const ICON_SVG = `
       <svg width="28" height="28" fill="%FILL%" viewBox="0 0 24 24">
         <path fill-rule="evenodd" clip-rule="evenodd" d="M9.586 2.586A2 2 0 0 1 11 2h2a2 2 0 0 1 2 2v.089l.473.196.063-.063a2.002 2.002 0 0 1 2.828 0l1.414 1.414a2 2 0 0 1 0 2.827l-.063.064.196.473H20a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-.089l-.196.473.063.063a2.002 2.002 0 0 1 0 2.828l-1.414 1.414a2 2 0 0 1-2.828 0l-.063-.063-.473.196V20a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-.089l-.473-.196-.063.063a2.002 2.002 0 0 1-2.828 0l-1.414-1.414a2 2 0 0 1 0-2.827l.063-.064L4.089 15H4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h.09l.195-.473-.063-.063a2 2 0 0 1 0-2.828l1.414-1.414a2 2 0 0 1 2.827 0l.064.063L9 4.089V4a2 2 0 0 1 .586-1.414ZM8 12a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"/>
+      </svg>`;
+
+    const ACCOUNT_ICON_SVG = `
+      <svg width="28" height="28" fill="%FILL%" viewBox="0 0 24 24">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM6 19a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1H6v-1Zm14.5-9a3.5 3.5 0 1 0-2.8 5.6 5 5 0 0 1 2.3 2.4H22v-1a4 4 0 0 0-3.5-4h-.5a3.5 3.5 0 0 0 2.5-3Z"/>
       </svg>`;
 
     const getFillColor = () => {
@@ -264,8 +271,11 @@ observer.observe(document.body, { childList: true, subtree: true });
     };
 
     const updateButtonColor = () => {
+      const fillColor = getFillColor();
       const svg = document.querySelector(`#${BUTTON_ID} svg`);
-      if (svg) svg.setAttribute('fill', getFillColor());
+      if (svg) svg.setAttribute('fill', fillColor);
+      const accSvg = document.querySelector(`#${ACCOUNT_BTN_ID} svg`);
+      if (accSvg) accSvg.setAttribute('fill', fillColor);
     };
 
     const findInsertionPoint = () => {
@@ -286,7 +296,7 @@ observer.observe(document.body, { childList: true, subtree: true });
       btn.setAttribute('style', `
         position: ${findInsertionPoint().desktopTarget === null ? 'fixed' : 'block'};
         top: 8px;
-        right: 100px;
+        right: 104px;
         background: transparent;
         border: none;
         border-radius: 50%;
@@ -302,20 +312,48 @@ observer.observe(document.body, { childList: true, subtree: true });
       return btn;
     };
 
+    const createAccountButton = () => {
+      const btn = document.createElement('button');
+      btn.id = ACCOUNT_BTN_ID;
+      btn.setAttribute('style', `
+        position: ${findInsertionPoint().desktopTarget === null ? 'fixed' : 'block'};
+        top: 8px;
+        right: 58px;
+        background: transparent;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        pointer-events: auto;
+      `);
+      btn.innerHTML = ACCOUNT_ICON_SVG.replace('%FILL%', getFillColor());
+      btn.onclick = () => AccountBridge?.onOpenSwitcher?.();
+      return btn;
+    };
+
     const insertButton = () => {
-      if (document.getElementById(BUTTON_ID)) return;
-
       const { container, desktopTarget } = findInsertionPoint();
-      const button = createButton();
 
-      if (desktopTarget) desktopTarget.insertBefore(button, desktopTarget.firstChild);
-      else if (container) container.insertBefore(button, container.firstChild);
+      if (!document.getElementById(BUTTON_ID)) {
+        const button = createButton();
+        if (desktopTarget) desktopTarget.insertBefore(button, desktopTarget.firstChild);
+        else if (container) container.insertBefore(button, container.firstChild);
+      }
+
+      if (!document.getElementById(ACCOUNT_BTN_ID)) {
+        const accBtn = createAccountButton();
+        if (desktopTarget) desktopTarget.insertBefore(accBtn, desktopTarget.firstChild);
+        else if (container) container.insertBefore(accBtn, container.firstChild);
+      }
     };
 
     insertButton();
 
     const observer = new MutationObserver(() => {
-      if (!document.getElementById(BUTTON_ID) && isFeed()) {
+      if ((!document.getElementById(BUTTON_ID) || !document.getElementById(ACCOUNT_BTN_ID)) && isFeed()) {
         insertButton();
       }
     });

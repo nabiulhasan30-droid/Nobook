@@ -36,12 +36,14 @@ import com.multiplatform.webview.web.rememberSaveableWebViewState
 import com.multiplatform.webview.web.rememberWebViewNavigator
 import com.ycngmn.nobook.R
 import com.ycngmn.nobook.ui.components.NetworkErrorDialog
+import com.ycngmn.nobook.ui.components.accounts.AccountSwitcherSheet
 import com.ycngmn.nobook.ui.components.settings.SettingsDialog
 import com.ycngmn.nobook.ui.viewmodel.MainViewModel
 import com.ycngmn.nobook.ui.viewmodel.SettingsViewModel
 import com.ycngmn.nobook.utils.DESKTOP_USER_AGENT
 import com.ycngmn.nobook.utils.ExternalRequestInterceptor
 import com.ycngmn.nobook.utils.fileChooserWebViewParams
+import com.ycngmn.nobook.utils.jsBridge.AccountBridge
 import com.ycngmn.nobook.utils.jsBridge.ClipboardBridge
 import com.ycngmn.nobook.utils.jsBridge.DownloadBridge
 import com.ycngmn.nobook.utils.jsBridge.NobookSettings
@@ -202,6 +204,34 @@ fun NobookWebView(
         )
     }
 
+    var accountSwitcherToggle by rememberSaveable { mutableStateOf(false) }
+    if (accountSwitcherToggle) {
+        setWindow(false)
+        AccountSwitcherSheet(
+            themeColor = themeColor,
+            onDismiss = {
+                setWindow(settingsVM.immersiveMode.value)
+                accountSwitcherToggle = false
+            },
+            onSwitchToAccount = {
+                setWindow(settingsVM.immersiveMode.value)
+                accountSwitcherToggle = false
+                isLoading = true
+                navigator.loadUrl("https://m.facebook.com")
+            },
+            onAddNewAccount = {
+                setWindow(settingsVM.immersiveMode.value)
+                accountSwitcherToggle = false
+                isLoading = true
+                navigator.loadUrl("https://m.facebook.com/login")
+            },
+            onReload = {
+                isLoading = true
+                navigator.reload()
+            }
+        )
+    }
+
     if (isLoading) {
         SplashLoading(
             if (loadingState is LoadingState.Loading) {
@@ -262,6 +292,10 @@ fun NobookWebView(
                 addJavascriptInterface(
                     NobookSettings { settingsToggle = true },
                     "SettingsBridge"
+                )
+                addJavascriptInterface(
+                    AccountBridge { accountSwitcherToggle = true },
+                    "AccountBridge"
                 )
                 addJavascriptInterface(
                     ThemeChange { viewModel.setThemeColor(Color(it)) },
