@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.map
@@ -26,6 +27,7 @@ class SettingsDataStore(private val context: Context) {
         val HIDE_PEOPLE_YOU_MAY_KNOW = booleanPreferencesKey("hide_people_you_may_know")
         val HIDE_GROUPS = booleanPreferencesKey("hide_groups")
         val isRevertDesktop = booleanPreferencesKey("is_revert_desktop")
+        val FONT_SCALE = intPreferencesKey("font_scale")
     }
 
     val prefs = context.dataStore.data
@@ -73,6 +75,11 @@ class SettingsDataStore(private val context: Context) {
     val amoledBlack = context.dataStore.data.map { it[AMOLED_BLACK] ?: false }
     suspend fun setAmoledBlack(amoledBlack: Boolean) {
         context.dataStore.edit { it[AMOLED_BLACK] = amoledBlack }
+    }
+
+    val fontScale = context.dataStore.data.map { it[FONT_SCALE] ?: 100 }
+    suspend fun setFontScale(scale: Int) {
+        context.dataStore.edit { it[FONT_SCALE] = scale }
     }
 
     val hideSuggested = context.dataStore.data.map { it[HIDE_SUGGESTED] ?: false }

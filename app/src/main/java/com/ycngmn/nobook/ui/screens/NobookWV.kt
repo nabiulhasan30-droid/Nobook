@@ -249,6 +249,13 @@ fun NobookWebView(
     }
 
 
+    val fontScale by settingsVM.fontScale.collectAsState()
+    LaunchedEffect(fontScale) {
+        runCatching {
+            state.nativeWebView.settings.textZoom = fontScale
+        }
+    }
+
     LaunchedEffect(isDesktop) {
         val userAgent = if (isDesktop) DESKTOP_USER_AGENT else ""
         state.nativeWebView.settings.userAgentString = userAgent
@@ -335,6 +342,7 @@ fun NobookWebView(
                 settings.setSupportZoom(true)
                 settings.builtInZoomControls = true
                 settings.displayZoomControls = false
+                settings.textZoom = settingsVM.fontScale.value
             }
         }
     )

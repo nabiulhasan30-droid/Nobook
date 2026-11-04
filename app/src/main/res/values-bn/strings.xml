@@ -29,4 +29,6 @@
     <string name="hide_sponsored_ads_from_your_feed">ফিড থেকে স্পন্সরড বিজ্ঞাপন লুকান</string>
     <string name="enable_download_button_on_media_view">মিডিয়া ভিউতে ডাউনলোড বোতাম চালু করুন</string>
     <string name="nobook_settings">Facebook N সেটিংস</string>
+    <string name="font_size_title">ফন্ট সাইজ (লেখার আকার)</string>
+    <string name="font_size_description">ফেসবুকের লেখার আকার বড় বা ছোট করুন</string>
 </resources>

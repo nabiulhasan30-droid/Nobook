@@ -155,17 +155,21 @@
     }
 })();
 
-// Universal Post Text Selection & 1-Click Full Post Copy
+// Clean Native Text Selection for Facebook Posts, Comments & Captions
 (() => {
   const selectionStyle = document.createElement('style');
-  selectionStyle.id = 'fbn-selection-and-copy-style';
+  selectionStyle.id = 'fbn-clean-selection-style';
   selectionStyle.textContent = `
     *, *:before, *:after {
       -webkit-user-select: text !important;
       user-select: text !important;
       -webkit-touch-callout: default !important;
     }
-    button, input, select, textarea {
+    button, input, select, textarea, [role="button"] > svg, [role="button"] > img {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
       -webkit-user-select: auto !important;
       user-select: auto !important;
     }
@@ -177,99 +181,10 @@
       background: #1877F2 !important;
       color: #FFFFFF !important;
     }
-    .fbn-post-copy-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 9px;
-      margin: 4px 0 6px 0;
-      background: rgba(24, 119, 242, 0.1);
-      border: 1px solid rgba(24, 119, 242, 0.35);
-      border-radius: 12px;
-      color: #1877F2;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      user-select: none !important;
-      -webkit-user-select: none !important;
-      z-index: 10;
-      transition: all 0.2s ease;
-    }
-    .fbn-post-copy-btn:active {
-      transform: scale(0.95);
-      background: rgba(24, 119, 242, 0.25);
-    }
-    .fbn-post-copy-btn.copied {
-      background: #10B981 !important;
-      border-color: #10B981 !important;
-      color: #FFFFFF !important;
-    }
   `;
-  if (!document.getElementById('fbn-selection-and-copy-style')) {
+  if (!document.getElementById('fbn-clean-selection-style')) {
     document.head.appendChild(selectionStyle);
   }
-
-  const attachCopyButtons = () => {
-    const textNodes = document.querySelectorAll(
-      'div[data-mcomponent*="TextArea"], ' +
-      '.native-text, ' +
-      'div[dir="auto"], ' +
-      'article div[dir="auto"]'
-    );
-
-    textNodes.forEach(container => {
-      if (container.closest('.fbn-post-copy-btn')) return;
-      if (container.getAttribute('data-fbn-copy-attached') === 'true') return;
-
-      const rawText = (container.innerText || container.textContent || '').trim();
-      // Only attach to post bodies with more than 20 chars
-      if (rawText.length > 20 && !container.querySelector('.fbn-post-copy-btn')) {
-        container.setAttribute('data-fbn-copy-attached', 'true');
-
-        const btn = document.createElement('div');
-        btn.className = 'fbn-post-copy-btn';
-        btn.innerHTML = `📋 কপি`;
-        btn.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-
-          const cleanText = Array.from(container.childNodes)
-            .filter(node => node !== btn)
-            .map(node => node.textContent)
-            .join(' ')
-            .trim();
-
-          const toCopy = cleanText || rawText;
-          if (window.ClipboardBridge?.copyTextToClipboard) {
-            window.ClipboardBridge.copyTextToClipboard(toCopy);
-          } else if (navigator.clipboard) {
-            navigator.clipboard.writeText(toCopy);
-          }
-
-          btn.innerHTML = `✓ কপি হয়েছে`;
-          btn.classList.add('copied');
-          setTimeout(() => {
-            btn.innerHTML = `📋 কপি`;
-            btn.classList.remove('copied');
-          }, 2000);
-        };
-
-        if (container.firstChild) {
-          container.insertBefore(btn, container.firstChild);
-        } else {
-          container.appendChild(btn);
-        }
-      }
-    });
-  };
-
-  attachCopyButtons();
-
-  const obs = new MutationObserver(attachCopyButtons);
-  obs.observe(document.body || document.documentElement, {
-    childList: true,
-    subtree: true
-  });
 })();
 
 // Enhance Loading Overlay Script

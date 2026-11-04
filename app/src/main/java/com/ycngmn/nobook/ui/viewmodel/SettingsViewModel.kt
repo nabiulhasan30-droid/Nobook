@@ -8,6 +8,7 @@ import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.AMOLED_BLACK
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.DESKTOP_LAYOUT
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.ENABLE_COPY_TO_CLIPBOARD
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.ENABLE_DOWNLOAD_CONTENT
+import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.FONT_SCALE
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.HIDE_GROUPS
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.HIDE_PEOPLE_YOU_MAY_KNOW
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.HIDE_REELS
@@ -70,6 +71,11 @@ class SettingsViewModel(
     val amoledBlack = dataStore.amoledBlack.stateIn(
         scope = viewModelScope,
         initialValue = initialPrefs[AMOLED_BLACK] ?: false,
+        started = SharingStarted.WhileSubscribed()
+    )
+    val fontScale = dataStore.fontScale.stateIn(
+        scope = viewModelScope,
+        initialValue = initialPrefs[FONT_SCALE] ?: 100,
         started = SharingStarted.WhileSubscribed()
     )
     val hideSuggested = dataStore.hideSuggested.stateIn(
@@ -148,6 +154,12 @@ class SettingsViewModel(
     fun setAmoledBlack(amoledBlack: Boolean) {
         viewModelScope.launch {
             dataStore.setAmoledBlack(amoledBlack)
+        }
+    }
+
+    fun setFontScale(scale: Int) {
+        viewModelScope.launch {
+            dataStore.setFontScale(scale)
         }
     }
 

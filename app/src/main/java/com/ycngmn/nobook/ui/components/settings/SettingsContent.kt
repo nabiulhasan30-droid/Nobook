@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Diversity1
 import androidx.compose.material.icons.filled.EmojiPeople
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Padding
 import androidx.compose.material.icons.filled.Try
 import androidx.compose.material.icons.outlined.Circle
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -62,7 +64,9 @@ fun SettingsContent(
 ) {
     val context = LocalContext.current
     var isOpenDialog by rememberSaveable { mutableStateOf(false) }
+    var isOpenFontDialog by rememberSaveable { mutableStateOf(false) }
 
+    val fontScale = viewModel.fontScale.collectAsState()
     val removeAds = viewModel.removeAds.collectAsState()
     val enableDownloadContent = viewModel.enableDownloadContent.collectAsState()
     val enableCopyToClipboard = viewModel.enableCopyToClipboard.collectAsState()
@@ -113,6 +117,13 @@ fun SettingsContent(
 
         SettingsGroup(
             items = listOf(
+                SettingsItem(
+                    icon = Icons.Filled.FormatSize,
+                    title = stringResource(R.string.font_size_title),
+                    supportingText = "${fontScale.value}% - " + stringResource(R.string.font_size_description),
+                    isActive = null,
+                    onClick = { isOpenFontDialog = true },
+                ),
                 SettingsItem(
                     icon = Icons.Outlined.Pinch,
                     title = stringResource(R.string.pinch_to_zoom_title),
@@ -179,6 +190,103 @@ fun SettingsContent(
         )
     }
 
+    if (isOpenFontDialog) {
+        FontSizeDialog(
+            currentScale = fontScale.value,
+            onSelectScale = { viewModel.setFontScale(it) },
+            onDismiss = { isOpenFontDialog = false }
+        )
+    }
+
+}
+
+@Composable
+private fun FontSizeDialog(
+    currentScale: Int,
+    onSelectScale: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val presets = listOf(
+        80 to "খুব ছোট (80%)",
+        90 to "ছোট (90%)",
+        100 to "স্বাভাবিক / ডিফল্ট (100%)",
+        115 to "মাঝারি বড় (115%)",
+        130 to "বড় (130%)",
+        150 to "খুব বড় (150%)",
+        175 to "বিশাল (175%)"
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(color = MaterialTheme.colorScheme.surfaceContainer)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "ফন্টের আকার নির্বাচন করুন",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Text(
+                text = "ফেসবুকের লেখার আকার কত বড় বা ছোট দেখতে চান নির্বাচন করুন:",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                presets.forEach { (scale, label) ->
+                    val isSelected = currentScale == scale
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isSelected) FacebookBlue.copy(alpha = 0.15f)
+                                else Color.Transparent
+                            )
+                            .clickable {
+                                onSelectScale(scale)
+                                onDismiss()
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) FacebookBlue else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = FacebookBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("বাতিল", color = FacebookBlue)
+                }
+            }
+        }
+    }
 }
 
 @Composable
