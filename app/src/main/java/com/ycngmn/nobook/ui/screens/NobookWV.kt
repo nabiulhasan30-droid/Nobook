@@ -166,6 +166,20 @@ fun NobookWebView(
         setWindow(isImmersiveMode)
     }
 
+    val fontFamily by settingsVM.fontFamily.collectAsState()
+    fun applyCustomFont() {
+        val option = FontPresets.getById(fontFamily)
+        val importParam = if (option.importUrl != null) "\"${option.importUrl}\"" else "null"
+        val js = "window.applyFacebookFont && window.applyFacebookFont(\"${option.fontCss}\", $importParam);"
+        runCatching {
+            state.nativeWebView.evaluateJavascript(js, null)
+        }
+    }
+
+    LaunchedEffect(fontFamily) {
+        applyCustomFont()
+    }
+
     val userScripts by viewModel.scripts
     val loadingState = state.loadingState
 
@@ -256,20 +270,6 @@ fun NobookWebView(
         runCatching {
             state.nativeWebView.settings.textZoom = fontScale
         }
-    }
-
-    val fontFamily by settingsVM.fontFamily.collectAsState()
-    fun applyCustomFont() {
-        val option = FontPresets.getById(fontFamily)
-        val importParam = if (option.importUrl != null) "\"${option.importUrl}\"" else "null"
-        val js = "window.applyFacebookFont && window.applyFacebookFont(\"${option.fontCss}\", $importParam);"
-        runCatching {
-            state.nativeWebView.evaluateJavascript(js, null)
-        }
-    }
-
-    LaunchedEffect(fontFamily) {
-        applyCustomFont()
     }
 
     LaunchedEffect(isDesktop) {
