@@ -207,64 +207,10 @@
     });
 })();
 
-// Hide Facebook app download / "browse faster with app" banner at login and mobile pages
+// Hide facebook download button at login page.
 (function() {
-    const hideBanners = () => {
-        // 1. Selector-based detection for Bloks banner at login or headers
-        const candidates = document.querySelectorAll(
-            '[role="button"][aria-label*="Facebook"], ' +
-            '[role="button"][aria-label*="ফেসবুক"], ' +
-            '[role="button"][aria-label*="ব্রাউজ করতে"], ' +
-            'div[data-bloks-name="bk.components.Flexbox"].wbloks_1'
-        );
-
-        candidates.forEach(el => {
-            const label = el.getAttribute('aria-label') || el.innerText || '';
-            if (
-                label.includes('ব্রাউজ করতে') ||
-                label.includes('Facebook অ্যাপ') ||
-                label.includes('ফেসবুক অ্যাপ') ||
-                label.includes('browse faster') ||
-                label.includes('Use the Facebook app') ||
-                label.includes('Get Facebook')
-            ) {
-                const container = el.closest('.wbloks_114') ||
-                                  el.closest('.wbloks_115') ||
-                                  el.closest('div[style*="padding: 10px 12px"]') ||
-                                  el.parentElement?.parentElement ||
-                                  el;
-                container.style.display = 'none';
-            }
-        });
-
-        // 2. Text-content scanning across spans/divs in header area
-        const spans = document.querySelectorAll('span, a, div');
-        for (const s of spans) {
-            if (s.children.length === 0 && s.textContent) {
-                const t = s.textContent.trim();
-                if (
-                    t.includes('আরও দ্রুত ব্রাউজ করতে') ||
-                    (t.includes('Facebook অ্যাপ ব্যবহার করুন') && t.length < 80) ||
-                    (t.includes('Facebook app') && t.includes('faster') && t.length < 80)
-                ) {
-                    const topContainer = s.closest('.wbloks_114') ||
-                                         s.closest('.wbloks_115') ||
-                                         s.closest('div[style*="padding: 10px 12px"]') ||
-                                         s.closest('[role="button"]') ||
-                                         s;
-                    topContainer.style.display = 'none';
-                }
-            }
-        }
-    };
-
-    hideBanners();
-
-    const obs = new MutationObserver(hideBanners);
-    obs.observe(document.documentElement || document.body, {
-        childList: true,
-        subtree: true
-    });
+    const element = document.querySelector('div[data-bloks-name="bk.components.Flexbox"].wbloks_1');
+    if (element) element.remove();
 })();
 
 // Hide annoying bottom banners
