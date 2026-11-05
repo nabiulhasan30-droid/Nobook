@@ -155,24 +155,44 @@
     }
 })();
 
-// Clean Native Text Selection for Facebook Posts, Comments & Captions
+// Clean Native Text Selection for Facebook Posts, Comments & Captions (Scoped strictly to individual posts)
 (() => {
   const selectionStyle = document.createElement('style');
   selectionStyle.id = 'fbn-clean-selection-style';
   selectionStyle.textContent = `
-    *, *:before, *:after {
+    /* Prevent whole page from being selected when tapping "Select All" */
+    html, body, #root, #viewport, [role="banner"], [role="navigation"], [role="feed"], header, nav, footer {
+      -webkit-user-select: none !important;
+      user-select: none !important;
+    }
+
+    /* ONLY post bodies, comments, captions and user readable text are selectable */
+    article div[dir="auto"],
+    [role="article"] div[dir="auto"],
+    [data-ad-preview="message"],
+    [data-ad-preview="message"] *,
+    [data-ad-comet-preview="message"],
+    [data-ad-comet-preview="message"] *,
+    div[dir="auto"] {
       -webkit-user-select: text !important;
       user-select: text !important;
       -webkit-touch-callout: default !important;
     }
-    button, input, select, textarea, [role="button"] > svg, [role="button"] > img {
-      -webkit-user-select: none;
-      user-select: none;
+
+    /* Never select action buttons, icons, tabs, toolbars */
+    button, [role="button"], [role="button"] *, [role="tab"], [role="tab"] *,
+    [role="toolbar"], [role="toolbar"] *, i, svg, [role="img"] {
+      -webkit-user-select: none !important;
+      user-select: none !important;
+      -webkit-touch-callout: none !important;
     }
+
+    /* Form input fields remain normal */
     input, textarea {
       -webkit-user-select: auto !important;
       user-select: auto !important;
     }
+
     ::selection {
       background: #1877F2 !important;
       color: #FFFFFF !important;
@@ -183,25 +203,117 @@
     }
   `;
   if (!document.getElementById('fbn-clean-selection-style')) {
-    document.head.appendChild(selectionStyle);
+    (document.head || document.documentElement).appendChild(selectionStyle);
   }
+
+  // Active post containment helper so "Select All" ONLY selects the current post
+  let activePostContainer = null;
+
+  function findPostTarget(node) {
+    if (!node || node === document.body || node === document.documentElement) return null;
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    if (!el) return null;
+
+    return el.closest('[data-ad-preview="message"]') ||
+           el.closest('[data-ad-comet-preview="message"]') ||
+           el.closest('article div[dir="auto"]') ||
+           el.closest('[role="article"] div[dir="auto"]') ||
+           (el.closest('div[dir="auto"]') && !el.closest('[role="banner"]') && !el.closest('[role="navigation"]') ? el.closest('div[dir="auto"]') : null) ||
+           el.closest('article') ||
+           el.closest('[role="article"]');
+  }
+
+  ['pointerdown', 'touchstart', 'mousedown'].forEach(eventType => {
+    document.addEventListener(eventType, (e) => {
+      const post = findPostTarget(e.target);
+      if (post) {
+        activePostContainer = post;
+      }
+    }, { passive: true, capture: true });
+  });
+
+  // Clamp selection strictly to active post when Android's "Select All" fires
+  let isClamping = false;
+  document.addEventListener('selectionchange', () => {
+    if (isClamping) return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+
+    const targetPost = activePostContainer || findPostTarget(sel.anchorNode);
+    if (!targetPost) return;
+
+    const range = sel.getRangeAt(0);
+    const common = range.commonAncestorContainer;
+
+    // If selection expanded beyond the target post (e.g. user pressed "Select All" on Android menu)
+    if (!targetPost.contains(common) && common !== targetPost) {
+      isClamping = true;
+      try {
+        const newRange = document.createRange();
+        newRange.selectNodeContents(targetPost);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      } catch (err) {
+      } finally {
+        setTimeout(() => { isClamping = false; }, 60);
+      }
+    }
+  });
+
+  // Keyboard shortcut Ctrl+A / Cmd+A containment
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      const targetPost = activePostContainer || findPostTarget(window.getSelection()?.anchorNode);
+      if (targetPost && !e.target.matches?.('input, textarea')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        const range = document.createRange();
+        range.selectNodeContents(targetPost);
+        sel.addRange(range);
+      }
+    }
+  }, { capture: true });
 })();
 
-// Dynamic Custom Font Family Injection
+// Dynamic Custom Font Family Injection (Safe typography: strictly for post text, 100% preserving Facebook Icon Fonts)
 (() => {
-  window.applyFacebookFont = function(fontCss, importUrl) {
-    if (!fontCss) return;
+  window.applyFacebookFont = function(fontCss, importUrl, fontId) {
     let styleEl = document.getElementById('fbn-custom-font-style');
+
+    // If default font or empty, remove any injected font overrides so Facebook uses 100% stock native fonts and icons!
+    if (!fontCss || fontId === 'default') {
+      if (styleEl) styleEl.remove();
+      return;
+    }
+
     if (!styleEl) {
       styleEl = document.createElement('style');
       styleEl.id = 'fbn-custom-font-style';
       (document.head || document.documentElement).appendChild(styleEl);
     }
+
     const importRule = (importUrl && importUrl !== 'null') ? `@import url('${importUrl}');\n` : '';
     styleEl.textContent = `
       ${importRule}
-      body, html, div, span, p, a, input, button, textarea, article, h1, h2, h3, h4, h5, h6 {
+      /* Apply custom font ONLY to user post text, comments and readable body */
+      article div[dir="auto"],
+      [role="article"] div[dir="auto"],
+      [data-ad-preview="message"],
+      [data-ad-preview="message"] *,
+      [data-ad-comet-preview="message"],
+      [data-ad-comet-preview="message"] *,
+      p,
+      .native-text {
         font-family: ${fontCss} !important;
+      }
+
+      /* STRICTLY PRESERVE Facebook icon fonts, SVGs, reactions and badges - NEVER override */
+      i, svg, [role="img"], [data-icon], [class*="icon"], [class*="sp_"], [class*="sx_"],
+      [data-visualcompletion], [role="button"] span, [role="tab"] span, header span, nav span,
+      [role="navigation"] span, [role="banner"] span {
+        font-family: inherit !important;
       }
     `;
   };

@@ -63,6 +63,7 @@ import com.ycngmn.nobook.data.model.FontPresets
 import com.ycngmn.nobook.ui.theme.FacebookBlue
 import com.ycngmn.nobook.ui.viewmodel.SettingsViewModel
 import com.ycngmn.nobook.utils.BiometricHelper
+import com.ycngmn.nobook.utils.findActivity
 import com.ycngmn.nobook.utils.rememberAutoDesktop
 
 @Composable
@@ -134,11 +135,12 @@ fun SettingsContent(
                             if (!BiometricHelper.canAuthenticate(context)) {
                                 Toast.makeText(
                                     context,
-                                    "ফোনে কোনো ফিঙ্গারপ্রিন্ট বা লক স্ক্রিন সক্রিয় নেই!",
+                                    "ফোনে কোনো ফিঙ্গারপ্রিন্ট বা লক স্ক্রিন সক্রিয় নেই! ফোনের সেটিংস থেকে লক সেট করুন।",
                                     Toast.LENGTH_LONG
                                 ).show()
                             } else {
-                                (context as? FragmentActivity)?.let { activity ->
+                                val activity = context.findActivity()
+                                if (activity != null) {
                                     BiometricHelper.showBiometricPrompt(
                                         activity = activity,
                                         title = "ফিঙ্গারপ্রিন্ট যাচাই করুন",
@@ -147,10 +149,13 @@ fun SettingsContent(
                                             viewModel.setBiometricLock(true)
                                             Toast.makeText(context, "ফিঙ্গারপ্রিন্ট লক সফলভাবে চালু হয়েছে!", Toast.LENGTH_SHORT).show()
                                         },
-                                        onError = {
-                                            Toast.makeText(context, "যাচাইকরণ ব্যর্থ হয়েছে!", Toast.LENGTH_SHORT).show()
+                                        onError = { err ->
+                                            Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
                                         }
                                     )
+                                } else {
+                                    viewModel.setBiometricLock(true)
+                                    Toast.makeText(context, "ফিঙ্গারপ্রিন্ট লক চালু হয়েছে!", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         } else {

@@ -169,8 +169,12 @@ fun NobookWebView(
     val fontFamily by settingsVM.fontFamily.collectAsState()
     fun applyCustomFont() {
         val option = FontPresets.getById(fontFamily)
-        val importParam = if (option.importUrl != null) "\"${option.importUrl}\"" else "null"
-        val js = "window.applyFacebookFont && window.applyFacebookFont(\"${option.fontCss}\", $importParam);"
+        val js = if (option.id == "default") {
+            "window.applyFacebookFont && window.applyFacebookFont(null, null, 'default');"
+        } else {
+            val importParam = if (option.importUrl != null) "\"${option.importUrl}\"" else "null"
+            "window.applyFacebookFont && window.applyFacebookFont(\"${option.fontCss}\", $importParam, \"${option.id}\");"
+        }
         runCatching {
             state.nativeWebView.evaluateJavascript(js, null)
         }
