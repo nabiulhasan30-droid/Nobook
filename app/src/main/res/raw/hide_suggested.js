@@ -1,73 +1,63 @@
-// Hide suggested posts from feed
+// =========================================================================
+// Facebook N - Hide Suggested Posts, Groups, and Pages
+// =========================================================================
 (function() {
+  'use strict';
 
-    // Hide suggested posts from feed
-    const isDesktop = typeof isDesktopMode === 'function' ? isDesktopMode() : (window.isDesktopMode ? window.isDesktopMode() : false);
-    if (isDesktop) {
-      (() => {
-        const containerSelector = '.x1yztbdb.x1n2onr6.xh8yej3.x1ja2u2z';
-        const targetSpanSelector = 'span.xzsf02u.xo1l8bm.xdwrcjd';
+  const SUGGESTED_TERMS = [
+    'suggested for you', 'আপনার জন্য সাজেস্ট করা', 'সাজেস্ট করা পোস্ট',
+    'suggested post', 'suggested page', 'suggested group', 'popular near you',
+    'suggested reels'
+  ];
 
-        const hideMatchingContainers = () => {
-          const containers = document.querySelectorAll(containerSelector);
-          containers.forEach(container => {
-            const targetSpan = container.querySelector(targetSpanSelector);
-            if (targetSpan) {
-              container.style.display = 'none';
-            }
-          });
-        };
+  function hideIfSuggested(container) {
+    if (!container || container.dataset?.fbnSuggestedChecked) return;
+    container.dataset.fbnSuggestedChecked = 'true';
 
-        hideMatchingContainers();
+    const header = container.querySelector('header, div[data-sigil*="header"]') || container;
+    const txt = (header.textContent || '').toLowerCase();
 
-        const observer = new MutationObserver(() => {
-          hideMatchingContainers();
-        });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true,
-        });
-      })();
-    } else {
-      (function() {
-        function processNode(node) {
-          if (!(node instanceof HTMLElement)) return;
-          if (window.location.pathname !== '/') return;
-
-          const textSpans = node.querySelectorAll(
-            'div[data-mcomponent="TextArea"][data-type="text"][data-tti-phase="-1"] .native-text > span'
-          );
-
-          textSpans.forEach(textSpan => {
-            if (textSpan.textContent.trim() === '•') {
-              const suggestedPostContainer = textSpan.closest('div[data-tracking-duration-id]');
-              if (suggestedPostContainer) {
-                suggestedPostContainer.style.display = 'none';
-                const postGap = suggestedPostContainer.previousElementSibling;
-                if (postGap) {
-                  postGap.style.display = 'none';
-                }
-              }
-            }
-          });
+    for (const term of SUGGESTED_TERMS) {
+      if (txt.includes(term)) {
+        container.style.setProperty('display', 'none', 'important');
+        container.style.setProperty('height', '0px', 'important');
+        const prev = container.previousElementSibling;
+        if (prev && (prev.offsetHeight < 35 || prev.classList?.contains('post-gap'))) {
+          prev.style.setProperty('display', 'none', 'important');
         }
-
-        const observer = new MutationObserver(mutations => {
-          for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-              processNode(node);
-            }
-          }
-        });
-
-        observer.observe(document.body, {
-          childList: true,
-          subtree: true
-        });
-
-        processNode(document.body);
-      })();
+        return;
+      }
     }
-})();
 
+    // Follow button on non-connected pages
+    const followBtn = container.querySelector('[aria-label*="Follow" i], [aria-label*="ফলো করুন" i]');
+    if (followBtn && txt.includes('•') && (txt.includes('suggested') || txt.includes('সাজেস্ট'))) {
+      container.style.setProperty('display', 'none', 'important');
+      container.style.setProperty('height', '0px', 'important');
+    }
+  }
+
+  function scanSuggested(root = document) {
+    const candidates = root.querySelectorAll(
+      'article, [role="article"], div[data-pagelet*="FeedUnit"], div[data-tracking-duration-id], div[data-mcomponent="MContainer"].m'
+    );
+    candidates.forEach(hideIfSuggested);
+  }
+
+  scanSuggested(document);
+  setTimeout(() => scanSuggested(document), 500);
+  setTimeout(() => scanSuggested(document), 1500);
+
+  const observer = new MutationObserver(mutations => {
+    for (const m of mutations) {
+      for (const n of m.addedNodes) {
+        if (n.nodeType === 1) scanSuggested(n);
+      }
+    }
+  });
+
+  observer.observe(document.body || document.documentElement, {
+    childList: true,
+    subtree: true
+  });
+})();

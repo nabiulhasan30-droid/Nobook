@@ -101,7 +101,7 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { it[FONT_FAMILY] = family }
     }
 
-    val hideSuggested = context.dataStore.data.map { it[HIDE_SUGGESTED] ?: false }
+    val hideSuggested = context.dataStore.data.map { it[HIDE_SUGGESTED] ?: true }
     suspend fun setHideSuggested(hideSuggestion: Boolean) {
         context.dataStore.edit { it[HIDE_SUGGESTED] = hideSuggestion }
     }

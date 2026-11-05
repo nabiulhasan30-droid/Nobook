@@ -63,7 +63,7 @@ class SettingsViewModel(
     )
     val stickyNavbar = dataStore.stickyNavbar.stateIn(
         scope = viewModelScope,
-        initialValue = initialPrefs[STICKY_NAVBAR] ?: false,
+        initialValue = initialPrefs[STICKY_NAVBAR] ?: true,
         started = SharingStarted.WhileSubscribed()
     )
     val pinchToZoom = dataStore.pinchToZoom.stateIn(
@@ -98,7 +98,7 @@ class SettingsViewModel(
     )
     val hideSuggested = dataStore.hideSuggested.stateIn(
         scope = viewModelScope,
-        initialValue = initialPrefs[HIDE_SUGGESTED] ?: false,
+        initialValue = initialPrefs[HIDE_SUGGESTED] ?: true,
         started = SharingStarted.WhileSubscribed()
     )
     val hideReels = dataStore.hideReels.stateIn(
