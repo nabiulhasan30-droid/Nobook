@@ -220,7 +220,7 @@ fun SettingsContent(
             TextButton(
                 modifier = Modifier.align(Alignment.Center),
                 onClick = {
-                    val githubRepoUrl = "https://github.com/ycngmn/nobook"
+                    val githubRepoUrl = "https://github.com/nabiulhasan30-droid/Nobook"
                     val intent = Intent(Intent.ACTION_VIEW, githubRepoUrl.toUri())
                     context.startActivity(intent)
                 }

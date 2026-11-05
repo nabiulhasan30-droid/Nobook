@@ -18,11 +18,11 @@ extensions.configure<ApplicationExtension> {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.ycngmn.nobook"
+        applicationId = "com.nabiul.facebookn"
         minSdk = 23
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.4.1"
+        versionCode = 16
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
