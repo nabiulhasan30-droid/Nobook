@@ -21,16 +21,29 @@ extensions.configure<ApplicationExtension> {
         applicationId = "com.ycngmn.nobook"
         minSdk = 23
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.1.1"
+        versionCode = 15
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            val ksFile = rootProject.file("keystore/release.keystore")
+            if (ksFile.exists()) {
+                storeFile = ksFile
+                storePassword = "nabiul_app_key_2026"
+                keyAlias = "nabiul_release_key"
+                keyPassword = "nabiul_app_key_2026"
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
