@@ -21,8 +21,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "com.nabiul.facebookn"
         minSdk = 23
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.6.4"
+        versionCode = 23
+        versionName = "1.6.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

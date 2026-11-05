@@ -12,7 +12,6 @@
   const styleEl = document.createElement('style');
   styleEl.id = 'fbn-ultra-adblock-style';
   styleEl.textContent = `
-    /* Known ad container classes & attributes */
     div.sponsored_ad,
     article[data-ft*="sponsored_ad"],
     article[data-ft*='"is_sponsored":1'],
@@ -24,41 +23,7 @@
     div[data-testid*="ad_capsule"],
     div[data-testid*="sponsored"],
     div[data-testid*="ad-"],
-
-    /* Transparency / Ad Preferences Link Matches (100% legal ad signature) */
-    article:has(a[href*="/ads/about"]),
-    article:has(a[href*="about/ads"]),
-    article:has(a[href*="ad_preferences"]),
-    article:has(a[href*="ads_preferences"]),
-    article:has(a[href*="/adpreferences"]),
-    article:has(a[href*="facebook.com/ads/"]),
-    article:has(a[href*="ad_id="]),
-    [role="article"]:has(a[href*="/ads/about"]),
-    [role="article"]:has(a[href*="about/ads"]),
-    [role="article"]:has(a[href*="ad_preferences"]),
-    [role="article"]:has(a[href*="ads_preferences"]),
-    [role="article"]:has(a[href*="/adpreferences"]),
-    [role="article"]:has(a[href*="facebook.com/ads/"]),
-    [role="article"]:has(a[href*="ad_id="]),
-    div[data-mcomponent="MContainer"]:has(a[href*="/ads/about"]),
-    div[data-mcomponent="MContainer"]:has(a[href*="about/ads"]),
-    div[data-mcomponent="MContainer"]:has(a[href*="ad_preferences"]),
-    div[data-mcomponent="MContainer"]:has(a[href*="facebook.com/ads/"]),
-    div[data-tracking-duration-id]:has(a[href*="/ads/about"]),
-    div[data-tracking-duration-id]:has(a[href*="about/ads"]),
-    div[data-tracking-duration-id]:has(a[href*="ad_preferences"]),
-
-    /* Aria-Label Matches for sponsored posts */
-    article:has([aria-label*="Sponsored" i]),
-    article:has([aria-label*="স্পন্সরড" i]),
-    article:has([aria-label*="বিজ্ঞাপন" i]),
-    [role="article"]:has([aria-label*="Sponsored" i]),
-    [role="article"]:has([aria-label*="স্পন্সরড" i]),
-    [role="article"]:has([aria-label*="বিজ্ঞাপন" i]),
-    div[data-tracking-duration-id]:has([aria-label*="Sponsored" i]),
-    div[data-tracking-duration-id]:has([aria-label*="স্পন্সরড" i]),
-    div[data-mcomponent="MContainer"]:has([aria-label*="Sponsored" i]),
-    div[data-mcomponent="MContainer"]:has([aria-label*="স্পন্সরড" i]) {
+    [data-fbn-is-ad="true"] {
       display: none !important;
       visibility: hidden !important;
       height: 0 !important;
@@ -74,18 +39,16 @@
     (document.head || document.documentElement).appendChild(styleEl);
   }
 
-  // Keywords that identify sponsored / promotional content across languages
   const SPONSORED_KEYWORDS = new Set([
     'sponsored', 'স্পন্সরড', 'স্পনসর্ড', 'বিজ্ঞাপন', 'বিজ্ঞাপনদাতা', 'ad', 'ads',
     'promoted', 'gesponsert', 'sponsorlu', 'sponsorowane', 'publicidad',
     'patrocinado', 'sponsorisée', 'sponsorisé', 'sponsorizzato', 'gesponsord',
     'sponset', 'sponsorizat', 'sponzorované', 'sponzorováno', 'sponsrat',
-    'được tài trợ', 'χορηγούμενη', 'реклама', 'спонсорирано', 'במימון',
+    'được tài trợ', 'χορηগούμενη', 'реклама', 'спонсорирано', 'במימון',
     'سپانسرڈ', 'प्रायोजित', '광고', '贊助', '赞助内容', '広告', 'ditaja',
     'bersponsor', 'disponsori', 'paid partnership', 'paid promotion'
   ]);
 
-  // Suggested post markers to clean clutter
   const SUGGESTED_MARKERS = [
     'suggested for you', 'আপনার জন্য সাজেস্ট করা', 'সাজেস্ট করা পোস্ট',
     'suggested post', 'suggested page', 'suggested group', 'popular near you'
@@ -109,7 +72,6 @@
       const parent = node.parentElement;
       if (!parent) continue;
 
-      // Check if parent or ancestor is hidden via inline style or computed style
       const s = window.getComputedStyle(parent);
       if (
         s.display === 'none' ||
@@ -120,7 +82,7 @@
         s.clip === 'rect(0px, 0px, 0px, 0px)' ||
         (s.position === 'absolute' && (parseInt(s.left) < -500 || parseInt(s.top) < -500))
       ) {
-        continue; // Decoy character inserted by Facebook! Skip!
+        continue;
       }
       chars += node.textContent;
     }
@@ -131,10 +93,8 @@
     if (!text || text.length < 2) return false;
     const clean = text.replace(ZERO_WIDTH_REGEX, '').trim().toLowerCase();
 
-    // Direct match
     if (SPONSORED_KEYWORDS.has(clean)) return true;
 
-    // Prefixed match (e.g. "Sponsored · Paid partnership", "স্পন্সরড ·")
     for (const kw of SPONSORED_KEYWORDS) {
       if (
         clean === kw ||
@@ -158,6 +118,72 @@
       if (clean.includes(marker)) return true;
     }
     return false;
+  }
+
+  // Climbs up the DOM to find the top-level feed post container
+  function findEnclosingPost(markerNode) {
+    if (!markerNode || markerNode === document.body || markerNode === document.documentElement) return null;
+
+    let curr = markerNode;
+    let bestPost = null;
+
+    while (curr && curr !== document.body && curr !== document.documentElement) {
+      const tagName = curr.tagName;
+      const role = curr.getAttribute('role');
+      const mcomp = curr.getAttribute('data-mcomponent');
+      const pagelet = curr.getAttribute('data-pagelet') || '';
+
+      if (
+        tagName === 'ARTICLE' ||
+        role === 'article' ||
+        pagelet.includes('FeedUnit') ||
+        curr.getAttribute('data-tracking-duration-id') ||
+        curr.classList?.contains('sponsored_ad') ||
+        curr.parentElement?.getAttribute('data-type') === 'vscroller' ||
+        curr.parentElement?.id === 'm_newsfeed_stream' ||
+        curr.parentElement?.getAttribute('role') === 'feed'
+      ) {
+        return curr;
+      }
+
+      if (mcomp === 'MContainer' && curr.parentElement && curr.parentElement.getAttribute('data-type') === 'vscroller') {
+        return curr;
+      }
+
+      if (mcomp === 'MContainer' && !bestPost) {
+        bestPost = curr;
+      }
+
+      curr = curr.parentElement;
+    }
+
+    return bestPost || markerNode.closest('article, [role="article"], div[data-mcomponent="MContainer"]');
+  }
+
+  function eradicateElement(post) {
+    if (!post) return;
+    post.dataset.fbnAdChecked = 'true';
+    post.dataset.fbnIsAd = 'true';
+    post.setAttribute('data-fbn-is-ad', 'true');
+
+    post.style.setProperty('display', 'none', 'important');
+    post.style.setProperty('visibility', 'hidden', 'important');
+    post.style.setProperty('height', '0px', 'important');
+    post.style.setProperty('min-height', '0px', 'important');
+    post.style.setProperty('max-height', '0px', 'important');
+    post.style.setProperty('margin', '0px', 'important');
+    post.style.setProperty('padding', '0px', 'important');
+    post.style.setProperty('overflow', 'hidden', 'important');
+    post.style.setProperty('pointer-events', 'none', 'important');
+
+    const prev = post.previousElementSibling;
+    if (prev && (prev.offsetHeight < 35 || prev.classList?.contains('post-gap') || prev.getAttribute('data-mcomponent') === 'MContainer')) {
+      prev.style.setProperty('display', 'none', 'important');
+    }
+    const next = post.nextElementSibling;
+    if (next && (next.offsetHeight < 35 || next.classList?.contains('post-gap'))) {
+      next.style.setProperty('display', 'none', 'important');
+    }
   }
 
   function checkContainerForAd(container) {
@@ -186,7 +212,6 @@
       return true;
     }
 
-    // Also check child elements with data-ft
     const childWithFt = container.querySelector('[data-ft*="is_sponsored"], [data-ft*="sponsored_ad"], [data-ft*="ad_id"]');
     if (childWithFt) return true;
 
@@ -199,12 +224,10 @@
     if (ariaEl) return true;
 
     // 4. Header text inspection with De-obfuscation
-    // Facebook places the Sponsored label near author name and timestamp
     const headerArea = container.querySelector('header, div[data-sigil*="header"]') || container;
     const candidateNodes = headerArea.querySelectorAll('div[data-mcomponent="TextArea"], div[dir="auto"], span, a, b, strong');
 
     for (const node of candidateNodes) {
-      // Skip if inside the actual post body/message
       if (node.closest('[data-ad-preview="message"], [data-ad-comet-preview="message"]')) continue;
 
       const rawText = (node.innerText || node.textContent || '').trim();
@@ -212,7 +235,6 @@
         if (isAdKeyword(rawText)) return true;
         if (isSuggestedClutter(rawText)) return true;
 
-        // If rawText had decoy spans, run deep de-obfuscation
         if (node.children.length > 0) {
           const deobfuscated = getVisibleCleanText(node);
           if (deobfuscated.length > 0 && deobfuscated.length <= 40) {
@@ -222,7 +244,7 @@
       }
     }
 
-    // 5. Check if post has a "Follow" button next to an unknown page proposing sponsored reach
+    // 5. Follow button on suggested page
     const followBtn = container.querySelector('[aria-label*="Follow" i], [aria-label*="ফলো করুন" i]');
     if (followBtn && container.textContent.includes('•')) {
       const headerText = headerArea.textContent.toLowerCase();
@@ -234,82 +256,74 @@
     return false;
   }
 
-  function eradicateAd(post) {
-    if (!post) return;
-    post.dataset.fbnAdChecked = 'true';
-    post.dataset.fbnIsAd = 'true';
-
-    // Complete obliteration
-    post.style.setProperty('display', 'none', 'important');
-    post.style.setProperty('visibility', 'hidden', 'important');
-    post.style.setProperty('height', '0px', 'important');
-    post.style.setProperty('min-height', '0px', 'important');
-    post.style.setProperty('max-height', '0px', 'important');
-    post.style.setProperty('margin', '0px', 'important');
-    post.style.setProperty('padding', '0px', 'important');
-    post.style.setProperty('overflow', 'hidden', 'important');
-    post.style.setProperty('pointer-events', 'none', 'important');
-
-    // Eradicate adjacent spacing/gap so no white blank space remains
-    const prev = post.previousElementSibling;
-    if (prev && (prev.offsetHeight < 35 || prev.classList?.contains('post-gap') || prev.getAttribute('data-mcomponent') === 'MContainer')) {
-      prev.style.setProperty('display', 'none', 'important');
-    }
-    const next = post.nextElementSibling;
-    if (next && (next.offsetHeight < 35 || next.classList?.contains('post-gap'))) {
-      next.style.setProperty('display', 'none', 'important');
-    }
-  }
-
-  function findPostContainers(root = document) {
-    const selectors = [
-      'article',
-      '[role="article"]',
-      'div[data-pagelet*="FeedUnit"]',
-      'div[data-tracking-duration-id]',
-      'div.sponsored_ad',
-      'div[data-testid*="ad"]',
-      'div[data-mcomponent="MContainer"].m'
-    ];
-    return Array.from(root.querySelectorAll(selectors.join(', ')));
-  }
-
-  function scanFeedAds(root = document) {
+  function eradicateAllAds(root = document) {
     if (!root || !root.querySelectorAll) return;
 
-    const posts = findPostContainers(root);
-    for (let i = 0; i < posts.length; i++) {
-      const post = posts[i];
-      if (post.dataset?.fbnIsAd === 'true') {
-        post.style.display = 'none';
+    // A. Link-driven eradication: find legal ad transparency links and climb up
+    const adLinks = root.querySelectorAll(
+      'a[href*="/ads/about"], a[href*="about/ads"], a[href*="ad_preferences"], ' +
+      'a[href*="ads_preferences"], a[href*="/adpreferences"], a[href*="facebook.com/ads/"], ' +
+      'a[href*="ad_id="], a[href*="campaign_id="], a[href*="adset_id="], a[href*="ad_delivery="]'
+    );
+    for (let i = 0; i < adLinks.length; i++) {
+      const post = findEnclosingPost(adLinks[i]);
+      if (post) eradicateElement(post);
+    }
+
+    // B. Attribute-driven eradication: find sponsored data-ft elements and climb up
+    const ftElements = root.querySelectorAll(
+      '[data-ft*="is_sponsored"], [data-ft*="sponsored_ad"], [data-ft*="ad_id"], [data-ft*="commercial"]'
+    );
+    for (let i = 0; i < ftElements.length; i++) {
+      const post = findEnclosingPost(ftElements[i]);
+      if (post) eradicateElement(post);
+    }
+
+    // C. Aria-label eradication
+    const ariaElements = root.querySelectorAll(
+      '[aria-label*="Sponsored" i], [aria-label*="স্পন্সরড" i], ' +
+      '[aria-label*="স্পনসর্ড" i], [aria-label*="বিজ্ঞাপন" i], ' +
+      '[aria-label*="Promoted" i], [aria-label*="Paid partnership" i]'
+    );
+    for (let i = 0; i < ariaElements.length; i++) {
+      const post = findEnclosingPost(ariaElements[i]);
+      if (post) eradicateElement(post);
+    }
+
+    // D. Container inspection pass
+    const containers = root.querySelectorAll(
+      'article, [role="article"], div[data-pagelet*="FeedUnit"], div[data-tracking-duration-id], div.sponsored_ad, div[data-testid*="ad"], div[data-mcomponent="MContainer"].m'
+    );
+    for (let i = 0; i < containers.length; i++) {
+      const c = containers[i];
+      if (c.dataset?.fbnIsAd === 'true') {
+        c.style.display = 'none';
         continue;
       }
-      if (checkContainerForAd(post)) {
-        eradicateAd(post);
+      if (checkContainerForAd(c)) {
+        eradicateElement(c);
       }
     }
 
-    // Reels feed ads
+    // E. Reels feed ads
     const reelContainers = root.querySelectorAll('div.vertically-snappable, div[data-pagelet*="Reels"]');
     reelContainers.forEach(reel => {
-      if (reel.dataset?.fbnReelAdChecked) return;
-      if (checkContainerForAd(reel)) {
-        reel.dataset.fbnReelAdChecked = 'true';
-        reel.innerHTML = '';
+      if (reel.dataset?.fbnReelChecked) return;
+      reel.dataset.fbnReelChecked = 'true';
+      if (checkContainerForAd(reel) || reel.querySelector('a[href*="/ads/about"], a[href*="ad_preferences"]')) {
         reel.style.display = 'none';
+        reel.innerHTML = '';
       }
     });
   }
 
-  // Initial immediate pass
-  scanFeedAds(document);
+  // Multi-pass scanning
+  eradicateAllAds(document);
+  setTimeout(() => eradicateAllAds(document), 300);
+  setTimeout(() => eradicateAllAds(document), 800);
+  setTimeout(() => eradicateAllAds(document), 1800);
+  setTimeout(() => eradicateAllAds(document), 3500);
 
-  // Subsequent delayed pass (for posts whose text/spans populate after initial skeleton)
-  setTimeout(() => scanFeedAds(document), 400);
-  setTimeout(() => scanFeedAds(document), 1000);
-  setTimeout(() => scanFeedAds(document), 2500);
-
-  // High-performance MutationObserver
   let isScanning = false;
   const observer = new MutationObserver(mutations => {
     if (isScanning) return;
@@ -318,7 +332,7 @@
       for (const m of mutations) {
         for (const node of m.addedNodes) {
           if (node.nodeType === 1) {
-            scanFeedAds(node);
+            eradicateAllAds(node);
           }
         }
       }
@@ -331,13 +345,12 @@
     subtree: true
   });
 
-  // Also hook into scroll for continuous background cleansing
-  let lastScrollCheck = 0;
+  let lastScrollTime = 0;
   window.addEventListener('scroll', () => {
     const now = Date.now();
-    if (now - lastScrollCheck > 600) {
-      lastScrollCheck = now;
-      scanFeedAds(document);
+    if (now - lastScrollTime > 500) {
+      lastScrollTime = now;
+      eradicateAllAds(document);
     }
   }, { passive: true });
 })();
