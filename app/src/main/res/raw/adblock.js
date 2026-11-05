@@ -173,63 +173,15 @@
                     messageDiv.appendChild(subtitle);
                     container.appendChild(messageDiv);
 
-                    // Make container non-interactive
+                    // Make container non-interactive and hidden without auto-scrolling
                     container.style.pointerEvents = 'none';
                     container.style.userSelect = 'none';
-
-                    // Set up intersection observer to auto-scroll when this ad comes into view
-                    setupAutoScroll(container);
 
                     hiddenCount++;
                     break;
                 }
             }
         });
-    }
-
-    // Auto-scroll past hidden ads when they come into view
-    function setupAutoScroll(container) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
-                    // Find next non-hidden reel (skip all consecutive hidden ads)
-                    let nextReel = container.nextElementSibling;
-                    let skippedCount = 0;
-
-                    while (nextReel && nextReel.dataset.adHidden === 'true') {
-                        nextReel = nextReel.nextElementSibling;
-                        skippedCount++;
-                    }
-
-                    if (nextReel) {
-                        // Use a more aggressive scroll approach
-                        setTimeout(() => {
-                            // Scroll with center alignment for better distance
-                            nextReel.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center',
-                                inline: 'nearest'
-                            });
-
-                            // Additional scroll push after a short delay to ensure we're past the ad
-                            setTimeout(() => {
-                                window.scrollBy({
-                                    top: 100,
-                                    behavior: 'smooth'
-                                });
-                            }, 200);
-                        }, 100);
-                    }
-
-                    // Unobserve after scrolling once
-                    observer.unobserve(container);
-                }
-            });
-        }, {
-            threshold: 0.5 // Trigger when 50% of the ad is visible
-        });
-
-        observer.observe(container);
     }
 
     // Initial cleanup

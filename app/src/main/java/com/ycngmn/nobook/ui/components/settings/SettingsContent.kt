@@ -33,12 +33,21 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.PanoramaWideAngle
 import androidx.compose.material.icons.outlined.Pinch
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -75,10 +84,12 @@ fun SettingsContent(
     var isOpenDialog by rememberSaveable { mutableStateOf(false) }
     var isOpenFontDialog by rememberSaveable { mutableStateOf(false) }
     var isOpenFontFamilyDialog by rememberSaveable { mutableStateOf(false) }
+    var isOpenTimeoutDialog by rememberSaveable { mutableStateOf(false) }
 
     val fontScale = viewModel.fontScale.collectAsState()
     val fontFamily = viewModel.fontFamily.collectAsState()
     val biometricLock = viewModel.biometricLock.collectAsState()
+    val biometricLockTimeout = viewModel.biometricLockTimeout.collectAsState()
     val removeAds = viewModel.removeAds.collectAsState()
     val enableDownloadContent = viewModel.enableDownloadContent.collectAsState()
     val enableCopyToClipboard = viewModel.enableCopyToClipboard.collectAsState()
@@ -164,7 +175,17 @@ fun SettingsContent(
                         }
                     }
                 )
-            )
+            ).let { items ->
+                if (biometricLock.value) {
+                    items + SettingsItem(
+                        icon = Icons.Outlined.Timer,
+                        title = stringResource(R.string.biometric_timeout_title),
+                        supportingText = getLockTimeoutLabel(biometricLockTimeout.value),
+                        isActive = null,
+                        onClick = { isOpenTimeoutDialog = true }
+                    )
+                } else items
+            }
         )
 
         SettingsGroup(
@@ -268,6 +289,204 @@ fun SettingsContent(
         )
     }
 
+    if (isOpenTimeoutDialog) {
+        LockTimeoutDialog(
+            currentTimeoutSeconds = biometricLockTimeout.value,
+            onSelectTimeout = {
+                viewModel.setBiometricLockTimeout(it)
+                Toast.makeText(context, "লক হওয়ার সময়সীমা আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { isOpenTimeoutDialog = false }
+        )
+    }
+
+}
+
+private fun getLockTimeoutLabel(seconds: Int): String = when (seconds) {
+    0 -> "সাথে সাথে (তাৎক্ষণিক)"
+    15 -> "১৫ সেকেন্ড পর"
+    30 -> "৩০ সেকেন্ড পর"
+    60 -> "১ মিনিট পর"
+    120 -> "২ মিনিট পর"
+    300 -> "৫ মিনিট পর"
+    600 -> "১০ মিনিট পর"
+    900 -> "১৫ মিনিট পর"
+    1800 -> "৩০ মিনিট পর"
+    else -> if (seconds < 60) "${seconds} সেকেন্ড পর" else "${seconds / 60} মিনিট পর"
+}
+
+@Composable
+private fun LockTimeoutDialog(
+    currentTimeoutSeconds: Int,
+    onSelectTimeout: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val presets = listOf(
+        0 to "সাথে সাথে (তাৎক্ষণিক / অবিলম্বে)",
+        15 to "১৫ সেকেন্ড পর",
+        30 to "৩০ সেকেন্ড পর",
+        60 to "১ মিনিট পর",
+        120 to "২ মিনিট পর",
+        300 to "৫ মিনিট পর",
+        600 to "১০ মিনিট পর",
+        900 to "১৫ মিনিট পর",
+        1800 to "৩০ মিনিট পর"
+    )
+
+    var isCustomMode by rememberSaveable { mutableStateOf(presets.none { it.first == currentTimeoutSeconds }) }
+    var customMinutesText by rememberSaveable {
+        mutableStateOf(if (isCustomMode && currentTimeoutSeconds > 0) (currentTimeoutSeconds / 60).toString() else "")
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "স্বয়ংক্রিয় লক হওয়ার সময়সীমা",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "অ্যাপ থেকে বের হওয়ার পর কতক্ষণ অপেক্ষা করে পুনরায় ফিঙ্গারপ্রিন্ট চাইবে:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                )
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(presets, key = { it.first }) { (seconds, label) ->
+                        val isSelected = !isCustomMode && currentTimeoutSeconds == seconds
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) FacebookBlue.copy(alpha = 0.12f)
+                                    else Color.Transparent
+                                )
+                                .clickable {
+                                    isCustomMode = false
+                                    onSelectTimeout(seconds)
+                                    onDismiss()
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = {
+                                    isCustomMode = false
+                                    onSelectTimeout(seconds)
+                                    onDismiss()
+                                },
+                                colors = RadioButtonDefaults.colors(selectedColor = FacebookBlue)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) FacebookBlue else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Custom minutes option
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isCustomMode) FacebookBlue.copy(alpha = 0.12f)
+                                    else Color.Transparent
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isCustomMode = true }
+                            ) {
+                                RadioButton(
+                                    selected = isCustomMode,
+                                    onClick = { isCustomMode = true },
+                                    colors = RadioButtonDefaults.colors(selectedColor = FacebookBlue)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "✏️ নিজের মতো কাস্টম মিনিট দিন",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = if (isCustomMode) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isCustomMode) FacebookBlue else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            if (isCustomMode) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 44.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = customMinutesText,
+                                        onValueChange = { customMinutesText = it.filter { char -> char.isDigit() } },
+                                        placeholder = { Text("মিনিট (যেমন ৩, ৭, ৪৫)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            val mins = customMinutesText.toIntOrNull() ?: 1
+                                            val totalSeconds = (mins.coerceIn(1, 1440)) * 60
+                                            onSelectTimeout(totalSeconds)
+                                            onDismiss()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = FacebookBlue)
+                                    ) {
+                                        Text("সেভ")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("বাতিল", color = FacebookBlue)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

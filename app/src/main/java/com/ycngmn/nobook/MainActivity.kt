@@ -18,6 +18,8 @@ import com.ycngmn.nobook.ui.viewmodel.SettingsViewModel
 
 class MainActivity : FragmentActivity() {
     private val isAppLocked = mutableStateOf(true)
+    private var lastBackgroundTime = 0L
+    private var currentTimeoutSeconds = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -27,6 +29,8 @@ class MainActivity : FragmentActivity() {
         setContent {
             val settingsVM: SettingsViewModel = viewModel()
             val biometricLock by settingsVM.biometricLock.collectAsState()
+            val lockTimeout by settingsVM.biometricLockTimeout.collectAsState()
+            currentTimeoutSeconds = lockTimeout
             val intentUrl = intent?.data?.toString()
 
             NobookTheme {
@@ -39,9 +43,20 @@ class MainActivity : FragmentActivity() {
                         activity = this@MainActivity,
                         onUnlockSuccess = {
                             isAppLocked.value = false
+                            lastBackgroundTime = 0L
                         }
                     )
                 }
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (lastBackgroundTime > 0L) {
+            val elapsedSec = (System.currentTimeMillis() - lastBackgroundTime) / 1000
+            if (elapsedSec >= currentTimeoutSeconds) {
+                isAppLocked.value = true
             }
         }
     }
@@ -60,7 +75,9 @@ class MainActivity : FragmentActivity() {
             AccountManager(this).saveCurrentSession()
             CookieManager.getInstance().flush()
         }
-        // Lock app when moving to background
-        isAppLocked.value = true
+        lastBackgroundTime = System.currentTimeMillis()
+        if (currentTimeoutSeconds == 0) {
+            isAppLocked.value = true
+        }
     }
 }

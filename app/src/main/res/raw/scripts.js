@@ -533,3 +533,240 @@ observer.observe(document.body, { childList: true, subtree: true });
         return originalCreateObjectURL(blob);
     };
 })();
+
+// =========================================================================
+// Pull-To-Refresh (Only active at the absolute top of the feed)
+// =========================================================================
+(() => {
+  let startY = 0;
+  let startX = 0;
+  let isPulling = false;
+  let isRefreshing = false;
+  let indicatorEl = null;
+  let spinnerEl = null;
+
+  function ensureIndicator() {
+    if (indicatorEl && indicatorEl.parentNode) return;
+
+    indicatorEl = document.createElement('div');
+    indicatorEl.id = 'fbn-ptr-widget';
+    indicatorEl.innerHTML = `
+      <style>
+        #fbn-ptr-widget {
+          position: fixed;
+          top: 14px;
+          left: 50%;
+          transform: translate(-50%, -90px);
+          z-index: 999999;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: #FFFFFF;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.15s ease;
+        }
+        #fbn-ptr-svg {
+          width: 24px;
+          height: 24px;
+          transition: transform 0.08s linear;
+        }
+        @keyframes fbn-ptr-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .fbn-spinning {
+          animation: fbn-ptr-spin 0.75s linear infinite !important;
+        }
+      </style>
+      <svg id="fbn-ptr-svg" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#E4E6EB" stroke-width="2.8"></circle>
+        <path d="M12 3 A 9 9 0 0 1 21 12" fill="none" stroke="#1877F2" stroke-width="2.8" stroke-linecap="round"></path>
+      </svg>
+    `;
+    (document.body || document.documentElement).appendChild(indicatorEl);
+    spinnerEl = indicatorEl.querySelector('#fbn-ptr-svg');
+  }
+
+  function getScrollTop() {
+    const docTop = document.documentElement ? document.documentElement.scrollTop : 0;
+    const bodyTop = document.body ? document.body.scrollTop : 0;
+    const vscroller = document.querySelector('div[data-type="vscroller"]');
+    const vscrollerTop = vscroller ? vscroller.scrollTop : 0;
+    return Math.max(window.scrollY || 0, docTop, bodyTop, vscrollerTop);
+  }
+
+  function resetIndicator() {
+    if (!indicatorEl) return;
+    indicatorEl.style.transition = 'transform 0.25s cubic-bezier(0.2, 0, 0, 1), opacity 0.25s ease';
+    indicatorEl.style.transform = 'translate(-50%, -90px)';
+    indicatorEl.style.opacity = '0';
+    if (spinnerEl) spinnerEl.classList.remove('fbn-spinning');
+    setTimeout(() => {
+      isPulling = false;
+      isRefreshing = false;
+      if (indicatorEl) indicatorEl.style.transition = '';
+    }, 250);
+  }
+
+  function triggerRefresh() {
+    isRefreshing = true;
+    window._userInitiatedRefresh = true;
+    if (indicatorEl) {
+      indicatorEl.style.transition = 'transform 0.2s ease';
+      indicatorEl.style.transform = 'translate(-50%, 26px)';
+      indicatorEl.style.opacity = '1';
+    }
+    if (spinnerEl) spinnerEl.classList.add('fbn-spinning');
+
+    setTimeout(() => {
+      if (window.SettingsBridge?.onPullRefresh) {
+        window.SettingsBridge.onPullRefresh();
+      } else {
+        window.location.reload();
+      }
+    }, 300);
+  }
+
+  window.addEventListener('touchstart', (e) => {
+    if (isRefreshing) return;
+    // ONLY activate if scroll position is at the absolute top (<= 0)
+    if (getScrollTop() <= 0 && e.touches.length === 1) {
+      startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
+      isPulling = true;
+      ensureIndicator();
+    } else {
+      isPulling = false;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!isPulling || isRefreshing) return;
+
+    // If user scrolled down even slightly, cancel pull-to-refresh
+    if (getScrollTop() > 0) {
+      resetIndicator();
+      return;
+    }
+
+    const currentY = e.touches[0].clientY;
+    const currentX = e.touches[0].clientX;
+    const deltaY = currentY - startY;
+    const deltaX = currentX - startX;
+
+    // Only pull if dragged downwards and more vertical than horizontal
+    if (deltaY > 10 && deltaY > Math.abs(deltaX)) {
+      const pullDist = Math.min(105, deltaY * 0.45);
+      if (indicatorEl) {
+        indicatorEl.style.transform = `translate(-50%, ${pullDist - 65}px)`;
+        indicatorEl.style.opacity = Math.min(1, pullDist / 40).toString();
+      }
+      if (spinnerEl) {
+        spinnerEl.style.transform = `rotate(${deltaY * 2.8}deg)`;
+      }
+    } else if (deltaY < 0) {
+      resetIndicator();
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', (e) => {
+    if (!isPulling || isRefreshing) return;
+    isPulling = false;
+
+    const endY = e.changedTouches[0]?.clientY || 0;
+    const deltaY = endY - startY;
+
+    if (deltaY >= 130 && getScrollTop() <= 0) {
+      triggerRefresh();
+    } else {
+      resetIndicator();
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchcancel', resetIndicator, { passive: true });
+})();
+
+// =========================================================================
+// Anti-Auto-Update & Reading Position Lock (Never auto-refresh while reading)
+// =========================================================================
+(() => {
+  // 1. Enable CSS scroll-anchoring to prevent content injection jumps
+  const anchorStyle = document.createElement('style');
+  anchorStyle.id = 'fbn-scroll-anchor-style';
+  anchorStyle.textContent = `
+    html, body, [role="feed"], div[data-type="vscroller"], main {
+      overflow-anchor: auto !important;
+    }
+  `;
+  if (!document.getElementById('fbn-scroll-anchor-style')) {
+    (document.head || document.documentElement).appendChild(anchorStyle);
+  }
+
+  function isScrolledDown() {
+    const docTop = document.documentElement ? document.documentElement.scrollTop : 0;
+    const bodyTop = document.body ? document.body.scrollTop : 0;
+    const vscroller = document.querySelector('div[data-type="vscroller"]');
+    const vscrollerTop = vscroller ? vscroller.scrollTop : 0;
+    return (window.scrollY || 0) > 35 || docTop > 35 || bodyTop > 35 || vscrollerTop > 35;
+  }
+
+  // 2. Block automatic location.reload / replace when user is reading down the page
+  const nativeReload = window.location.reload.bind(window.location);
+  window.location.reload = function(force) {
+    if (isScrolledDown() && !window._userInitiatedRefresh) {
+      console.log("[Facebook N] Suppressed automatic background reload while user is reading a post.");
+      return;
+    }
+    window._userInitiatedRefresh = false;
+    nativeReload(force);
+  };
+
+  const nativeReplace = window.location.replace.bind(window.location);
+  window.location.replace = function(url) {
+    if (isScrolledDown() && !window._userInitiatedRefresh) {
+      console.log("[Facebook N] Suppressed automatic background replace while user is reading a post.");
+      return;
+    }
+    nativeReplace(url);
+  };
+
+  // 3. Block script-driven scroll-to-top (0, 0) unless initiated by user back button
+  const nativeScrollTo = window.scrollTo.bind(window);
+  window.scrollTo = function(...args) {
+    let targetY = 0;
+    if (typeof args[0] === 'object' && args[0] !== null) {
+      targetY = args[0].top ?? 0;
+    } else if (typeof args[1] === 'number') {
+      targetY = args[1];
+    }
+    if (targetY === 0 && isScrolledDown() && !window._isUserRequestedScroll) {
+      console.log("[Facebook N] Prevented automatic script scroll-to-top while user is reading.");
+      return;
+    }
+    nativeScrollTo(...args);
+  };
+
+  // Update backHandlerNB to allow user-requested scroll to top
+  const origBackHandler = window.backHandlerNB;
+  if (typeof origBackHandler === 'function') {
+    window.backHandlerNB = function() {
+      window._isUserRequestedScroll = true;
+      const res = origBackHandler();
+      setTimeout(() => { window._isUserRequestedScroll = false; }, 1000);
+      return res;
+    };
+  }
+
+  // 4. Suppress visibilitychange auto-reload triggers when user is scrolled down
+  document.addEventListener('visibilitychange', (e) => {
+    if (document.visibilityState === 'visible' && isScrolledDown()) {
+      // User returned to app while reading a post - prevent event bubbling to reload handlers
+      e.stopImmediatePropagation();
+    }
+  }, { capture: true });
+})();

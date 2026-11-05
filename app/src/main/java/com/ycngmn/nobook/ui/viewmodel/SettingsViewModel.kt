@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ycngmn.nobook.data.local.SettingsDataStore
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.AMOLED_BLACK
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.BIOMETRIC_LOCK
+import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.BIOMETRIC_LOCK_TIMEOUT
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.DESKTOP_LAYOUT
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.ENABLE_COPY_TO_CLIPBOARD
 import com.ycngmn.nobook.data.local.SettingsDataStore.Companion.ENABLE_DOWNLOAD_CONTENT
@@ -83,6 +84,11 @@ class SettingsViewModel(
     val biometricLock = dataStore.biometricLock.stateIn(
         scope = viewModelScope,
         initialValue = initialPrefs[BIOMETRIC_LOCK] ?: false,
+        started = SharingStarted.WhileSubscribed()
+    )
+    val biometricLockTimeout = dataStore.biometricLockTimeout.stateIn(
+        scope = viewModelScope,
+        initialValue = initialPrefs[BIOMETRIC_LOCK_TIMEOUT] ?: 0,
         started = SharingStarted.WhileSubscribed()
     )
     val fontFamily = dataStore.fontFamily.stateIn(
@@ -178,6 +184,12 @@ class SettingsViewModel(
     fun setBiometricLock(enabled: Boolean) {
         viewModelScope.launch {
             dataStore.setBiometricLock(enabled)
+        }
+    }
+
+    fun setBiometricLockTimeout(seconds: Int) {
+        viewModelScope.launch {
+            dataStore.setBiometricLockTimeout(seconds)
         }
     }
 

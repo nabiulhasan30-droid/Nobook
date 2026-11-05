@@ -30,6 +30,7 @@ class SettingsDataStore(private val context: Context) {
         val isRevertDesktop = booleanPreferencesKey("is_revert_desktop")
         val FONT_SCALE = intPreferencesKey("font_scale")
         val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock")
+        val BIOMETRIC_LOCK_TIMEOUT = intPreferencesKey("biometric_lock_timeout")
         val FONT_FAMILY = stringPreferencesKey("font_family")
     }
 
@@ -88,6 +89,11 @@ class SettingsDataStore(private val context: Context) {
     val biometricLock = context.dataStore.data.map { it[BIOMETRIC_LOCK] ?: false }
     suspend fun setBiometricLock(enabled: Boolean) {
         context.dataStore.edit { it[BIOMETRIC_LOCK] = enabled }
+    }
+
+    val biometricLockTimeout = context.dataStore.data.map { it[BIOMETRIC_LOCK_TIMEOUT] ?: 0 }
+    suspend fun setBiometricLockTimeout(seconds: Int) {
+        context.dataStore.edit { it[BIOMETRIC_LOCK_TIMEOUT] = seconds }
     }
 
     val fontFamily = context.dataStore.data.map { it[FONT_FAMILY] ?: "default" }

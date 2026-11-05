@@ -40,6 +40,8 @@
     <string name="font_size_description">Adjust text size in Facebook</string>
     <string name="biometric_lock_title">Fingerprint App Lock</string>
     <string name="biometric_lock_description">Require fingerprint when opening app</string>
+    <string name="biometric_timeout_title">Auto-lock timeout</string>
+    <string name="biometric_timeout_description">Time after leaving app before locking</string>
     <string name="font_family_title">Change font style</string>
     <string name="font_family_description">Customize Facebook text font and typography</string>
     <string name="not_supported">Not supported</string>

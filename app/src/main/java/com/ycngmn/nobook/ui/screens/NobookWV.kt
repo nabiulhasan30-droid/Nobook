@@ -333,7 +333,15 @@ fun NobookWebView(
 
             webView.apply {
                 addJavascriptInterface(
-                    NobookSettings { settingsToggle = true },
+                    NobookSettings(
+                        toggleSettings = { settingsToggle = true },
+                        onReload = {
+                            runCatching {
+                                isLoading = true
+                                navigator.reload()
+                            }
+                        }
+                    ),
                     "SettingsBridge"
                 )
                 addJavascriptInterface(

@@ -4,7 +4,13 @@ import android.webkit.JavascriptInterface
 
 class NobookSettings (
     private val toggleSettings: () -> Unit,
+    private val onReload: (() -> Unit)? = null,
 ) {
     @JavascriptInterface
     fun onSettingsToggle() = toggleSettings()
+
+    @JavascriptInterface
+    fun onPullRefresh() {
+        onReload?.invoke()
+    }
 }
