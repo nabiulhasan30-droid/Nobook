@@ -627,8 +627,18 @@ observer.observe(document.body, { childList: true, subtree: true });
       if (window.SettingsBridge?.onPullRefresh) {
         window.SettingsBridge.onPullRefresh();
       } else {
-        window.location.reload();
+        const isHome = window.location.pathname === '/' || window.location.pathname === '' || window.location.pathname === '/home.php';
+        const host = window.location.host || 'm.facebook.com';
+        const ts = Date.now();
+        if (isHome) {
+          window.location.href = `https://${host}/?sk=h_chr&_ts=${ts}`;
+        } else {
+          const url = new URL(window.location.href);
+          url.searchParams.set('_ts', ts.toString());
+          window.location.href = url.toString();
+        }
       }
+      setTimeout(resetIndicator, 3500);
     }, 300);
   }
 
@@ -769,4 +779,270 @@ observer.observe(document.body, { childList: true, subtree: true });
       e.stopImmediatePropagation();
     }
   }, { capture: true });
+})();
+
+// =========================================================================
+// 2-3 Seconds Long-Press Post Copy Feature (with haptics & clean extraction)
+// =========================================================================
+(() => {
+  let pressTimer = null;
+  let startX = 0;
+  let startY = 0;
+  let targetElement = null;
+  let didTriggerCopy = false;
+  const LONG_PRESS_DURATION = 2000; // 2 seconds
+
+  function cleanPostText(el) {
+    if (!el) return '';
+    const clone = el.cloneNode(true);
+
+    // Remove "See more", "See translation", and similar action buttons
+    const buttons = clone.querySelectorAll('a, button, [role="button"], span[role="button"]');
+    buttons.forEach(b => {
+      const txt = (b.textContent || '').trim().toLowerCase();
+      if (txt === 'see more' || txt === 'see translation' ||
+          txt === 'আরও দেখুন' || txt === 'আরও পড়ুন' ||
+          txt.includes('see more') || txt.includes('আরও দেখুন')) {
+        b.remove();
+      }
+    });
+
+    // Remove script, style, svg, media
+    clone.querySelectorAll('script, style, noscript, svg, img, video, audio').forEach(s => s.remove());
+
+    const text = clone.innerText || clone.textContent || '';
+    return text.trim();
+  }
+
+  function extractPostContent(target) {
+    if (!target || target === document.body || target === document.documentElement) return null;
+
+    // 1. Direct message element (Facebook post body attribute)
+    const directMsg = target.closest('[data-ad-preview="message"], [data-ad-comet-preview="message"]');
+    if (directMsg) {
+      const text = cleanPostText(directMsg);
+      if (text) return { text, el: directMsg };
+    }
+
+    // 2. Direct text element clicked by user (like a comment or paragraph)
+    const directAuto = target.closest('div[dir="auto"], p, span[dir="auto"]');
+    if (directAuto && !directAuto.closest('button, [role="button"], header, footer, [role="toolbar"]')) {
+      const text = cleanPostText(directAuto);
+      if (text && text.length > 3) {
+        return { text, el: directAuto };
+      }
+    }
+
+    // 3. Post container (article or role="article")
+    const postContainer = target.closest('article, [role="article"], div[data-mcomponent="MContainer"]');
+    if (postContainer) {
+      // Look for message container inside postContainer
+      const postMsg = postContainer.querySelector('[data-ad-preview="message"], [data-ad-comet-preview="message"]');
+      if (postMsg) {
+        const text = cleanPostText(postMsg);
+        if (text) return { text, el: postMsg };
+      }
+
+      // Clone post container and strip action bars, headers, buttons
+      const clone = postContainer.cloneNode(true);
+      const removeSelectors = [
+        'header', 'footer', 'nav', 'form',
+        'button', '[role="button"]', '[role="toolbar"]',
+        'svg', 'img', 'video', 'audio',
+        '[data-sigil*="like"]', '[data-sigil*="comment"]', '[data-sigil*="share"]',
+        '[aria-label*="Like" i]', '[aria-label*="Comment" i]', '[aria-label*="Share" i]',
+        '[aria-label*="Reactions" i]', '[aria-label*="React" i]'
+      ];
+      removeSelectors.forEach(sel => {
+        clone.querySelectorAll(sel).forEach(el => el.remove());
+      });
+      const text = cleanPostText(clone);
+      if (text && text.length > 2) {
+        return { text, el: postContainer };
+      }
+    }
+
+    // 4. Fallback to any text inside target
+    const fallbackText = cleanPostText(target);
+    if (fallbackText && fallbackText.length > 2) {
+      return { text: fallbackText, el: target };
+    }
+
+    return null;
+  }
+
+  function showToast(message, isSuccess = true) {
+    let toast = document.getElementById('fbn-copy-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'fbn-copy-toast';
+      toast.innerHTML = `
+        <div id="fbn-copy-toast-content">
+          <span id="fbn-copy-toast-badge">✓</span>
+          <span id="fbn-copy-toast-msg"></span>
+        </div>
+        <style>
+          #fbn-copy-toast {
+            position: fixed;
+            bottom: 34px;
+            left: 50%;
+            transform: translate(-50%, 60px);
+            z-index: 10000000;
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.25s ease;
+          }
+          #fbn-copy-toast.fbn-show {
+            transform: translate(-50%, 0);
+            opacity: 1;
+          }
+          #fbn-copy-toast-content {
+            background: rgba(20, 20, 22, 0.94);
+            color: #FFFFFF;
+            padding: 10px 20px;
+            border-radius: 26px;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.36);
+            border: 1px solid rgba(255,255,255,0.14);
+          }
+        </style>
+      `;
+      (document.body || document.documentElement).appendChild(toast);
+    }
+    const badge = toast.querySelector('#fbn-copy-toast-badge');
+    const msg = toast.querySelector('#fbn-copy-toast-msg');
+    if (msg) msg.textContent = message;
+    if (badge) {
+      badge.textContent = isSuccess ? '✓' : 'ℹ';
+      badge.style.color = isSuccess ? '#4ade80' : '#f59e0b';
+    }
+    toast.classList.add('fbn-show');
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => {
+      toast.classList.remove('fbn-show');
+    }, 2400);
+  }
+
+  function flashHighlight(el) {
+    if (!el) return;
+    const origBoxShadow = el.style.boxShadow;
+    const origTransition = el.style.transition;
+    const origBg = el.style.backgroundColor;
+    el.style.transition = 'all 0.22s ease';
+    el.style.backgroundColor = 'rgba(24, 119, 242, 0.18)';
+    el.style.boxShadow = '0 0 0 3px #1877F2';
+    el.style.borderRadius = '8px';
+
+    setTimeout(() => {
+      el.style.backgroundColor = origBg;
+      el.style.boxShadow = origBoxShadow;
+      setTimeout(() => {
+        el.style.transition = origTransition;
+      }, 250);
+    }, 550);
+  }
+
+  function handleLongPress() {
+    if (!targetElement) return;
+
+    const result = extractPostContent(targetElement);
+    if (!result || !result.text) {
+      showToast('পোস্টে কোনো কপি করার মতো লেখা নেই', false);
+      return;
+    }
+
+    didTriggerCopy = true;
+    const textToCopy = result.text;
+
+    // 1. Android Native Clipboard (with Haptic Vibration & Native Toast)
+    if (window.ClipboardBridge?.copyTextToClipboard) {
+      window.ClipboardBridge.copyTextToClipboard(textToCopy);
+    } else if (window.SettingsBridge?.copyToClipboard) {
+      window.SettingsBridge.copyToClipboard(textToCopy);
+    }
+
+    // 2. Web Clipboard API fallback
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy).catch(() => {});
+    }
+
+    // 3. Clear any native text selection ranges so UI stays clean
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch (e) {}
+
+    // 4. Visual Flash & In-App Toast
+    flashHighlight(result.el || targetElement);
+    showToast('পোস্টের লেখা কপি হয়েছে! 📋', true);
+
+    setTimeout(() => { didTriggerCopy = false; }, 800);
+  }
+
+  // Prevent browser context menu when copy fires
+  window.addEventListener('contextmenu', (e) => {
+    if (didTriggerCopy) {
+      e.preventDefault();
+      e.stopPropagation();
+      didTriggerCopy = false;
+    }
+  }, { capture: true });
+
+  window.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      return;
+    }
+
+    const target = e.target;
+    // Don't intercept if user tapped form input, action buttons (Like, Comment, Share)
+    if (target.closest('input, textarea, select')) return;
+    const btn = target.closest('button, [role="button"]');
+    if (btn) {
+      const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+      const txt = (btn.textContent || '').trim().toLowerCase();
+      if (aria.includes('like') || aria.includes('comment') || aria.includes('share') ||
+          aria.includes('react') || aria.includes('লাইক') || aria.includes('কমেন্ট') ||
+          txt === 'like' || txt === 'comment' || txt === 'share' || txt === 'লাইক') {
+        return;
+      }
+    }
+
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    targetElement = target;
+
+    pressTimer = setTimeout(() => {
+      handleLongPress();
+      pressTimer = null;
+    }, LONG_PRESS_DURATION);
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (!pressTimer) return;
+    const curX = e.touches[0].clientX;
+    const curY = e.touches[0].clientY;
+    // If finger moves more than 10px, it's a scroll gesture -> cancel copy
+    if (Math.hypot(curX - startX, curY - startY) > 10) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchend', () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchcancel', () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }, { passive: true });
 })();

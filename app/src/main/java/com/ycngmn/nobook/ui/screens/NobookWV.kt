@@ -331,6 +331,8 @@ fun NobookWebView(
                 }
             }
 
+            val clipboardBridge = ClipboardBridge(context)
+
             webView.apply {
                 addJavascriptInterface(
                     NobookSettings(
@@ -338,8 +340,30 @@ fun NobookWebView(
                         onReload = {
                             runCatching {
                                 isLoading = true
-                                navigator.reload()
+                                webView.clearCache(false)
+                                val currentUrl = webView.url ?: ""
+                                val isDesktop = state.webSettings.customUserAgentString == DESKTOP_USER_AGENT
+                                val host = if (isDesktop) "https://www.facebook.com" else "https://m.facebook.com"
+                                val uri = android.net.Uri.parse(currentUrl)
+                                val path = uri.path ?: ""
+                                val isHome = path.isEmpty() || path == "/" || path == "/home.php"
+
+                                val freshUrl = if (isHome || !currentUrl.contains("facebook.com")) {
+                                    "$host/?sk=h_chr&_ts=${System.currentTimeMillis()}"
+                                } else {
+                                    val cleanUrl = currentUrl.replace(Regex("&?_ts=\\d+"), "").let {
+                                        if (it.endsWith("?") || it.endsWith("&")) it.dropLast(1) else it
+                                    }
+                                    val separator = if (cleanUrl.contains("?")) "&" else "?"
+                                    "$cleanUrl${separator}_ts=${System.currentTimeMillis()}"
+                                }
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    navigator.loadUrl(freshUrl)
+                                }
                             }
+                        },
+                        onCopyText = { text ->
+                            clipboardBridge.copyTextToClipboard(text)
                         }
                     ),
                     "SettingsBridge"
@@ -357,7 +381,7 @@ fun NobookWebView(
                     "DownloadBridge"
                 )
                 addJavascriptInterface(
-                    ClipboardBridge(context),
+                    clipboardBridge,
                     "ClipboardBridge"
                 )
 

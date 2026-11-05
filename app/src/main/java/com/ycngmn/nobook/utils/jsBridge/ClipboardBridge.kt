@@ -7,6 +7,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.widget.Toast
@@ -24,12 +27,37 @@ class ClipboardBridge(private val context: Context) {
                 val clipboardManager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("Facebook Post", text)
                 clipboardManager.setPrimaryClip(clip)
-                Toast.makeText(context, "লেখা কপি করা হয়েছে!", Toast.LENGTH_SHORT).show()
+
+                // Haptic feedback
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                        vibratorManager?.defaultVibrator?.vibrate(
+                            VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator?.vibrate(
+                                VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            vibrator?.vibrate(50)
+                        }
+                    }
+                } catch (ignored: Throwable) {}
+
+                Toast.makeText(context, "পোস্টের লেখা কপি হয়েছে! 📋", Toast.LENGTH_SHORT).show()
             }.onFailure {
                 it.printStackTrace()
             }
         }
     }
+
+    @JavascriptInterface
+    fun copyPost(text: String) = copyTextToClipboard(text)
 
     @JavascriptInterface
     fun copyImageToClipboard(base64Data: String, mimeType: String) {
