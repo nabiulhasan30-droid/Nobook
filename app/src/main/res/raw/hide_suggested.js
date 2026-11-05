@@ -2,7 +2,8 @@
 (function() {
 
     // Hide suggested posts from feed
-    if (window.isDesktopMode()) {
+    const isDesktop = typeof isDesktopMode === 'function' ? isDesktopMode() : (window.isDesktopMode ? window.isDesktopMode() : false);
+    if (isDesktop) {
       (() => {
         const containerSelector = '.x1yztbdb.x1n2onr6.xh8yej3.x1ja2u2z';
         const targetSpanSelector = 'span.xzsf02u.xo1l8bm.xdwrcjd';

@@ -331,33 +331,42 @@ fun NobookWebView(
                 }
             }
 
+            android.webkit.WebView.setWebContentsDebuggingEnabled(true)
+
             val clipboardBridge = ClipboardBridge(context)
 
             webView.apply {
+                webChromeClient = object : android.webkit.WebChromeClient() {
+                    override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
+                        android.util.Log.d("NobookJS", "[JS] ${consoleMessage?.message()} (${consoleMessage?.sourceId()}:${consoleMessage?.lineNumber()})")
+                        return true
+                    }
+                }
+
                 addJavascriptInterface(
                     NobookSettings(
                         toggleSettings = { settingsToggle = true },
                         onReload = {
                             runCatching {
                                 isLoading = true
-                                webView.clearCache(false)
-                                val currentUrl = webView.url ?: ""
-                                val isDesktop = state.webSettings.customUserAgentString == DESKTOP_USER_AGENT
-                                val host = if (isDesktop) "https://www.facebook.com" else "https://m.facebook.com"
-                                val uri = android.net.Uri.parse(currentUrl)
-                                val path = uri.path ?: ""
-                                val isHome = path.isEmpty() || path == "/" || path == "/home.php"
-
-                                val freshUrl = if (isHome || !currentUrl.contains("facebook.com")) {
-                                    "$host/?sk=h_chr&_ts=${System.currentTimeMillis()}"
-                                } else {
-                                    val cleanUrl = currentUrl.replace(Regex("&?_ts=\\d+"), "").let {
-                                        if (it.endsWith("?") || it.endsWith("&")) it.dropLast(1) else it
-                                    }
-                                    val separator = if (cleanUrl.contains("?")) "&" else "?"
-                                    "$cleanUrl${separator}_ts=${System.currentTimeMillis()}"
-                                }
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    webView.clearCache(false)
+                                    val currentUrl = webView.url ?: ""
+                                    val isDesktop = state.webSettings.customUserAgentString == DESKTOP_USER_AGENT
+                                    val host = if (isDesktop) "https://www.facebook.com" else "https://m.facebook.com"
+                                    val uri = android.net.Uri.parse(currentUrl)
+                                    val path = uri.path ?: ""
+                                    val isHome = path.isEmpty() || path == "/" || path == "/home.php"
+
+                                    val freshUrl = if (isHome || !currentUrl.contains("facebook.com")) {
+                                        "$host/?sk=h_chr&_ts=${System.currentTimeMillis()}"
+                                    } else {
+                                        val cleanUrl = currentUrl.replace(Regex("&?_ts=\\d+"), "").let {
+                                            if (it.endsWith("?") || it.endsWith("&")) it.dropLast(1) else it
+                                        }
+                                        val separator = if (cleanUrl.contains("?")) "&" else "?"
+                                        "$cleanUrl${separator}_ts=${System.currentTimeMillis()}"
+                                    }
                                     navigator.loadUrl(freshUrl)
                                 }
                             }

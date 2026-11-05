@@ -1,207 +1,200 @@
+// =========================================================================
+// Facebook N Professional Ultra-Comprehensive Ad Blocker
+// - Eradicates Sponsored posts, newsfeed ads, obfuscated ad spans, and reels ads
+// - Uses multi-lingual keyword recognition, transparency link matching & CSS rules
+// =========================================================================
 (function() {
+  const isDesktop = typeof isDesktopMode === 'function' ? isDesktopMode() : (window.isDesktopMode ? window.isDesktopMode() : false);
 
-    if (isDesktopMode()) {
-        (function() {
-          const selector = 'div.sponsored_ad, article[data-ft*="sponsored_ad"]';
+  // 1. Comprehensive Instant CSS Ad-Block Rules
+  const styleEl = document.createElement('style');
+  styleEl.id = 'fbn-ultra-adblock-style';
+  styleEl.textContent = `
+    /* Direct Ad Container Classes & Attributes */
+    div.sponsored_ad,
+    article[data-ft*="sponsored_ad"],
+    [data-ad-preview],
+    [data-ad-comet-preview],
+    div[data-testid*="ad_capsule"],
+    div[data-testid*="sponsored"],
+    div[data-testid*="ad-"],
+    /* Transparency Link Matches (Legal Requirement on all FB Ads) */
+    article:has(a[href*="/ads/about"]),
+    article:has(a[href*="about/ads"]),
+    article:has(a[href*="ad_preferences"]),
+    article:has(a[href*="ads_preferences"]),
+    [role="article"]:has(a[href*="/ads/about"]),
+    [role="article"]:has(a[href*="about/ads"]),
+    [role="article"]:has(a[href*="ad_preferences"]),
+    [role="article"]:has(a[href*="ads_preferences"]),
+    div[data-tracking-duration-id]:has(a[href*="/ads/about"]),
+    div[data-tracking-duration-id]:has(a[href*="about/ads"]),
+    div[data-tracking-duration-id]:has(a[href*="ad_preferences"]),
+    /* Aria-Label Matches */
+    article:has([aria-label*="Sponsored" i]),
+    article:has([aria-label*="স্পন্সরড" i]),
+    article:has([aria-label*="স্পনসর্ড" i]),
+    article:has([aria-label*="বিজ্ঞাপন" i]),
+    [role="article"]:has([aria-label*="Sponsored" i]),
+    [role="article"]:has([aria-label*="স্পন্সরড" i]),
+    [role="article"]:has([aria-label*="স্পনসর্ড" i]),
+    div[data-tracking-duration-id]:has([aria-label*="Sponsored" i]),
+    div[data-tracking-duration-id]:has([aria-label*="স্পন্সরড" i]),
+    /* Obfuscated / Native MComponent Sponsored Containers */
+    div[data-mcomponent="MContainer"]:has(a[href*="/ads/about"]),
+    div[data-mcomponent="MContainer"]:has(a[href*="about/ads"]) {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      max-height: 0 !important;
+      overflow: hidden !important;
+      pointer-events: none !important;
+    }
+  `;
+  if (!document.getElementById('fbn-ultra-adblock-style')) {
+    (document.head || document.documentElement).appendChild(styleEl);
+  }
 
-          const removeSponsored = (root = document) => {
-            root.querySelectorAll(selector).forEach(el => el.remove());
-          };
+  // Multi-lingual sponsored keyword list
+  const SPONSORED_KEYWORDS = [
+    'sponsored', 'স্পন্সরড', 'স্পনসর্ড', 'বিজ্ঞাপন', 'ad', 'promoted',
+    'gesponsert', 'sponsorlu', 'sponsorowane', 'publicidad', 'patrocinado',
+    'sponsorisée', 'sponsorisé', 'sponsorizzato', 'gesponsord', 'sponset',
+    'sponsorizat', 'sponzorované', 'sponzorováno', 'sponsrat', 'được tài trợ',
+    'χορηγούμενη', 'реклама', 'спонсорирано', 'במימון', 'سپانسرڈ', 'प्रायोजित',
+    '광고', '贊助', '赞助内容', '広告', 'ditaja', 'bersponsor', 'disponsori'
+  ];
 
-          removeSponsored();
+  // Zero-width characters regex
+  const ZERO_WIDTH_REGEX = /[\u200B-\u200D\uFEFF]/g;
 
-          const observer = new MutationObserver(mutations => {
-            for (const mutation of mutations) {
-              for (const node of mutation.addedNodes) {
-                if (!(node instanceof HTMLElement)) continue;
-                if (node.matches(selector)) {
-                  node.remove();
-                } else {
-                  removeSponsored(node);
-                }
-              }
-            }
-          });
-          observer.observe(document.body, {
-            childList: true,
-            subtree: true
-          });
-        })();
+  function isAdText(text) {
+    if (!text) return false;
+    const clean = text.replace(ZERO_WIDTH_REGEX, '').trim().toLowerCase();
+    if (clean.length < 2) return false;
 
+    for (const kw of SPONSORED_KEYWORDS) {
+      if (clean === kw ||
+          clean.startsWith(kw + ' ·') ||
+          clean.startsWith(kw + '•') ||
+          clean.startsWith(kw + ' ') ||
+          clean.endsWith(' ' + kw) ||
+          clean.includes('sponsored ·') ||
+          clean.includes('স্পন্সরড ·')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function checkContainerForAd(container) {
+    if (!container || container.dataset?.fbnAdChecked) return false;
+
+    // 1. Direct check: Ad transparency links
+    const adLink = container.querySelector('a[href*="/ads/about"], a[href*="about/ads"], a[href*="ad_preferences"], a[href*="ads_preferences"], a[href*="facebook.com/ads/"]');
+    if (adLink) return true;
+
+    // 2. Direct check: Aria-label for sponsored / ad
+    const ariaEl = container.querySelector('[aria-label*="Sponsored" i], [aria-label*="স্পন্সরড" i], [aria-label*="স্পনসর্ড" i], [aria-label*="বিজ্ঞাপন" i]');
+    if (ariaEl) return true;
+
+    // 3. Header/Metadata text inspection (where Facebook places the "Sponsored" tag)
+    // Only check the top portion (header/author/time) to prevent false positives in post body
+    const headerArea = container.querySelector('header, div[data-sigil*="header"], div[data-mcomponent="TextArea"], div:not([data-ad-preview])');
+    const searchRoot = headerArea || container;
+
+    // Look for spans and links with short text
+    const textNodes = searchRoot.querySelectorAll('span, a, div[dir="auto"], b, strong');
+    for (const node of textNodes) {
+      // Don't check elements inside post message body
+      if (node.closest('[data-ad-preview="message"], [data-ad-comet-preview="message"]')) continue;
+
+      // Use innerText which evaluates actual human-visible text (bypassing display:none obfuscations)
+      const visibleText = node.innerText || node.textContent || '';
+      if (visibleText.length <= 40 && isAdText(visibleText)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function hideAdPost(post) {
+    if (!post) return;
+    post.dataset.fbnAdChecked = 'true';
+    post.dataset.fbnIsAd = 'true';
+    post.style.display = 'none';
+    post.style.visibility = 'hidden';
+    post.style.height = '0';
+    post.style.maxHeight = '0';
+    post.style.overflow = 'hidden';
+
+    // Also hide adjacent gap / separator to prevent whitespace
+    const prev = post.previousElementSibling;
+    if (prev && (prev.classList.contains('post-gap') || prev.getAttribute('data-mcomponent') === 'MContainer')) {
+      if (prev.offsetHeight < 25) prev.style.display = 'none';
+    }
+    const next = post.nextElementSibling;
+    if (next && next.classList.contains('post-gap')) {
+      next.style.display = 'none';
+    }
+  }
+
+  function scanFeedAds(root = document) {
+    // Post containers across mobile and desktop
+    const selectors = [
+      'article',
+      '[role="article"]',
+      'div[data-tracking-duration-id]',
+      'div.sponsored_ad',
+      'div[data-testid*="ad"]'
+    ];
+
+    const posts = root.querySelectorAll(selectors.join(', '));
+    posts.forEach(post => {
+      if (post.dataset?.fbnIsAd === 'true') {
+        post.style.display = 'none';
         return;
-    }
-
-    const sponsoredTexts = [
-        "Sponsored", "Ad", "Gesponsert", "Sponsorlu", "Sponsorowane",
-        "Ispoonsara godhameera", "Geborg", "Bersponsor", "Ditaja",
-        "Disponsori", "Giisponsoran", "Sponzorováno", "Sponsoreret",
-        "Publicidad", "May Sponsor", "Sponsorisée", "Sponsorisé", "Oipytyvôva",
-        "Ɗaukar Nayin", "Sponzorirano", "Uterwa inkunga", "Sponsorizzato",
-        "Imedhaminiwa", "Hirdetés", "Misy Mpiantoka", "Gesponsord",
-        "Sponset", "Patrocinado", "Sponsorizat", "Sponzorované",
-        "Sponsoroitu", "Sponsrat", "Được tài trợ", "Χορηγούμενη",
-        "Спонсорирано", "Спонзорирано", "Ивээн тэтгэсэн", "Реклама",
-        "Спонзорисано", "במימון", "سپانسرڈ", "دارای پشتیبانی مالی",
-        "ስፖንሰር የተደረገ", "प्रायोजित", "ተደረገ", "प", "স্পনসর্ড",
-        "ਪ੍ਰਯੋਜਿਤ", "પ્રાયોજિત", "ପ୍ରାୟୋଜିତ", "செய்யப்பட்ட செய்யப்பட்ட",
-        "చేయబడినది చేయబడినది", "ಪ್ರಾಯೋಜಿಸಲಾಗಿದೆ", "ചെയ്‌തത് ചെയ്‌തത്",
-        "ලද ලද ලද", "สนับสนุน สนับสนุน รับ สนับสนุน สนับสนุน",
-        "ကြော်ငြာ ကြော်ငြာ", "ឧបត្ថម្ភ ឧបត្ថម្ភ ឧបត្ថម្ភ", "광고",
-        "贊助", "赞助内容", "広告", "സ്‌പോൺസർ ചെയ്‌തത്",
-        "Anzeige","Peye","Oglas"
-    ];
-
-    const specialChar = '󰞋';
-
-    const sponsoredRegex = new RegExp(`(${sponsoredTexts.join('|')})\\s*${specialChar}`, 'i');
-
-    function hideSponsoredContent(config) {
-        const { selector, textSelector } = config;
-        const containers = document.querySelectorAll(selector);
-
-        containers.forEach(container => {
-            const spans = container.querySelectorAll(textSelector);
-            for (const span of spans) {
-                if (sponsoredRegex.test(span.textContent)) {
-                    container.style.display = 'none';
-                    break;
-                }
-            }
-        });
-    }
-
-    const configs = [
-        {
-            selector: 'div[data-type="vscroller"] div[data-tracking-duration-id]:has(> div[data-focusable="true"] div[data-mcomponent*="TextArea"] .native-text > span)',
-            textSelector: '.native-text > span'
-        },
-        {
-            selector: 'div[data-status-bar-color] > div[data-mcomponent="MContainer"] > div[data-mcomponent="MContainer"]',
-            textSelector: 'div[data-mcomponent="TextArea"] .native-text > span'
-        },
-        {
-            selector: 'div[data-mcomponent="MContainer"].m.bg-s3 div[data-mcomponent="MContainer"]',
-            textSelector: 'div[data-mcomponent="TextArea"] .native-text > span'
-        },
-    ];
-
-    function hideAllAds() { configs.forEach(hideSponsoredContent); }
-
-    hideAllAds();
-
-    const observer = new MutationObserver(hideAllAds);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    function containsSponsoredText(text) {
-        const lowerText = text.toLowerCase();
-        return sponsoredTexts.some(word => {
-            const lowerWord = word.toLowerCase();
-            // Use word boundary regex to match whole words only
-            const wordBoundaryRegex = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-            return wordBoundaryRegex.test(lowerText);
-        });
-    }
-
-
-    function removeReelAds(root = document) {
-        const containers = root.querySelectorAll('div.vertically-snappable');
-
-        let hiddenCount = 0;
-        containers.forEach((container, index) => {
-            // Skip if already hidden
-            if (container.dataset.adHidden === 'true') {
-                return;
-            }
-
-            const spans = container.querySelectorAll('span');
-
-            for (const span of spans) {
-                const text = span.textContent;
-
-                if (containsSponsoredText(text)) {
-
-                    // Mark as hidden to prevent re-processing
-                    container.dataset.adHidden = 'true';
-
-                    // Completely empty the container but keep it in DOM for scroll snap
-                    container.innerHTML = '';
-
-                    // Add a styled message for blocked ad
-                    const messageDiv = document.createElement('div');
-                    messageDiv.style.cssText = `
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100%;
-                        width: 100%;
-                        background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
-                        color: #666;
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                        text-align: center;
-                        padding: 20px;
-                        box-sizing: border-box;
-                    `;
-
-                    const icon = document.createElement('div');
-                    icon.style.cssText = `
-                        font-size: 48px;
-                        margin-bottom: 16px;
-                        opacity: 0.6;
-                    `;
-                    icon.textContent = '🚫';
-
-                    const title = document.createElement('div');
-                    title.style.cssText = `
-                        font-size: 18px;
-                        font-weight: 600;
-                        margin-bottom: 8px;
-                        color: #888;
-                    `;
-                    title.textContent = 'Ad Blocked';
-
-                    const subtitle = document.createElement('div');
-                    subtitle.style.cssText = `
-                        font-size: 14px;
-                        color: #555;
-                        line-height: 1.4;
-                    `;
-                    subtitle.textContent = 'Sponsored content was removed';
-
-                    messageDiv.appendChild(icon);
-                    messageDiv.appendChild(title);
-                    messageDiv.appendChild(subtitle);
-                    container.appendChild(messageDiv);
-
-                    // Make container non-interactive and hidden without auto-scrolling
-                    container.style.pointerEvents = 'none';
-                    container.style.userSelect = 'none';
-
-                    hiddenCount++;
-                    break;
-                }
-            }
-        });
-    }
-
-    // Initial cleanup
-    removeReelAds();
-
-    // Watch for dynamically added reel ads
-    const reelObserver = new MutationObserver(mutations => {
-        for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                if (!(node instanceof HTMLElement)) continue;
-
-                // Check if the added node is a vertically-snappable container or contains one
-                if (node.matches('div.vertically-snappable')) {
-                    removeReelAds(node.parentElement || document);
-                } else if (node.querySelector('div.vertically-snappable')) {
-                    removeReelAds(node);
-                }
-            }
-        }
+      }
+      if (checkContainerForAd(post)) {
+        hideAdPost(post);
+      }
     });
 
-    reelObserver.observe(document.body, { childList: true, subtree: true });
+    // Reels Ads
+    const reelContainers = root.querySelectorAll('div.vertically-snappable');
+    reelContainers.forEach(reel => {
+      if (reel.dataset?.fbnReelAdChecked) return;
+      if (checkContainerForAd(reel)) {
+        reel.dataset.fbnReelAdChecked = 'true';
+        reel.innerHTML = '';
+        reel.style.display = 'none';
+      }
+    });
+  }
+
+  // Initial scan
+  scanFeedAds(document);
+
+  // Debounced MutationObserver for smooth 60fps scrolling performance
+  let isScanning = false;
+  const observer = new MutationObserver(mutations => {
+    if (isScanning) return;
+    isScanning = true;
+    requestAnimationFrame(() => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node.nodeType === 1) {
+            scanFeedAds(node);
+          }
+        }
+      }
+      isScanning = false;
+    });
+  });
+
+  observer.observe(document.body || document.documentElement, {
+    childList: true,
+    subtree: true
+  });
 })();

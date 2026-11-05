@@ -1,212 +1,147 @@
 // =========================================================================
-// Smart Auto-Hiding & Quick-Return Navbar (Facebook N)
-// - Fullscreen while scrolling down into feed
-// - Stylishly slides down on slight scroll-up for instant access to notifications & menu
+// Smart Auto-Hiding & Quick-Return Navbar Engine (Facebook N)
+// - Hides header & buttons when scrolling down into feed (clean fullscreen)
+// - Instantly and stylishly reveals header & buttons on slight scroll-up
 // =========================================================================
 (function() {
-  const TRANSITION = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease';
-  let isBarsVisible = true;
-  let lastScrollY = 0;
-  let scrollUpDistance = 0;
-  let scrollDownDistance = 0;
+  const isDesktop = typeof isDesktopMode === 'function' ? isDesktopMode() : (window.isDesktopMode ? window.isDesktopMode() : false);
 
-  let cachedNavbar = null;
-  let cachedTabbar = null;
-  let cachedScroller = null;
-  let navbarHeight = 44;
-  let tabbarHeight = 44;
-
-  function findElements() {
-    if (window.isDesktopMode?.()) {
-      const banner = document.querySelector('div[role="banner"]');
-      return { navbar: banner, tabbar: null, isDesktop: true };
+  // CSS for smooth slide transitions without breaking layout
+  const styleEl = document.createElement('style');
+  styleEl.id = 'fbn-smart-navbar-style';
+  styleEl.textContent = `
+    .fbn-nav-transition {
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease !important;
+      will-change: transform, opacity !important;
     }
-
-    // Top Header / Navbar (Facebook logo, search, icons)
-    const navbar = document.querySelector('div[data-tti-phase="-1"][data-mcomponent="MContainer"][data-type="container"][data-focusable="true"].m') ||
-                   document.querySelector('div[role="banner"]') ||
-                   document.querySelector('div[data-mcomponent="MContainer"]:has(input[type="search"])') ||
-                   document.querySelector('header');
-
-    // Tabbar (Feed, Friends, Messages, Notifications, Video, Menu tabs)
-    const tabbar = document.querySelector('div[role="tablist"][data-tti-phase="-1"][data-type="container"][data-mcomponent="MContainer"].m') ||
-                   document.querySelector('div[role="tablist"]') ||
-                   document.querySelector('div[data-mcomponent="MContainer"]:has(div[role="tab"])');
-
-    // Scroller container
-    const scroller = document.querySelector('div[data-type="vscroller"][data-is-pull-to-refresh-allowed="true"]') ||
-                     document.querySelector('div[data-type="vscroller"]');
-
-    return { navbar, tabbar, scroller, isDesktop: false };
+    .fbn-nav-hidden {
+      transform: translateY(-120%) !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .fbn-nav-visible {
+      transform: translateY(0) !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+  `;
+  if (!document.getElementById('fbn-smart-navbar-style')) {
+    (document.head || document.documentElement).appendChild(styleEl);
   }
+
+  let isHidden = false;
+  let lastScrollY = 0;
+  let scrollUpDelta = 0;
+  let scrollDownDelta = 0;
 
   function getScrollTop() {
     const docTop = document.documentElement ? document.documentElement.scrollTop : 0;
     const bodyTop = document.body ? document.body.scrollTop : 0;
-    const vscroller = cachedScroller || document.querySelector('div[data-type="vscroller"]');
+    const vscroller = document.querySelector('div[data-type="vscroller"]');
     const vscrollerTop = vscroller ? vscroller.scrollTop : 0;
     return Math.max(window.scrollY || 0, docTop, bodyTop, vscrollerTop);
   }
 
-  function getCustomButtons() {
-    return [
-      document.getElementById('custom-settings-btn'),
-      document.getElementById('custom-account-btn')
-    ].filter(Boolean);
+  function getNavElements() {
+    const elements = new Set();
+
+    if (isDesktop) {
+      const banner = document.querySelector('div[role="banner"]');
+      if (banner) elements.add(banner);
+    } else {
+      // 1. Facebook top header / banner
+      const banner = document.querySelector('header') ||
+                     document.querySelector('div#header') ||
+                     document.querySelector('div[role="banner"]') ||
+                     document.querySelector('div[data-mcomponent="MContainer"]:has(input[type="search"])') ||
+                     document.querySelector('div[data-tti-phase="-1"][data-mcomponent="MContainer"].m');
+      if (banner) elements.add(banner);
+
+      // 2. Tablist (if separate from header)
+      const tablist = document.querySelector('div[role="tablist"]') ||
+                      document.querySelector('div[data-mcomponent="MContainer"]:has(div[role="tab"])');
+      if (tablist && (!banner || !banner.contains(tablist))) {
+        elements.add(tablist);
+      }
+
+      // 3. Top-level fixed/sticky headers
+      const candidates = document.querySelectorAll('div[data-mcomponent="MContainer"].m, div[data-type="container"].m');
+      candidates.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= 10 && rect.bottom > 30 && rect.bottom <= 130 && rect.width >= window.innerWidth * 0.7) {
+          elements.add(el);
+        }
+      });
+    }
+
+    // Custom Nobook action buttons (Settings and Account switcher)
+    const settingsBtn = document.getElementById('custom-settings-btn');
+    const accountBtn = document.getElementById('custom-account-btn');
+    if (settingsBtn) elements.add(settingsBtn);
+    if (accountBtn) elements.add(accountBtn);
+
+    return Array.from(elements);
   }
 
-  function showBars() {
-    if (isBarsVisible) return;
-    isBarsVisible = true;
-
-    if (cachedNavbar) {
-      cachedNavbar.style.transform = 'translateY(0)';
-      cachedNavbar.style.opacity = '1';
-    }
-    if (cachedTabbar) {
-      cachedTabbar.style.transform = 'translateY(0)';
-      cachedTabbar.style.opacity = '1';
-    }
-
-    getCustomButtons().forEach(btn => {
-      btn.style.transform = 'translateY(0)';
-      btn.style.opacity = '1';
+  function showNavbar() {
+    if (!isHidden) return;
+    isHidden = false;
+    const els = getNavElements();
+    els.forEach(el => {
+      el.classList.add('fbn-nav-transition');
+      el.classList.remove('fbn-nav-hidden');
+      el.classList.add('fbn-nav-visible');
     });
   }
 
-  function hideBars() {
-    if (!isBarsVisible) return;
-
-    // Do not hide if at top or typing in search/input
-    if (getScrollTop() <= 20) return;
+  function hideNavbar() {
+    if (isHidden) return;
+    // Never hide if near top or if user is interacting with an input
+    if (getScrollTop() <= 30) return;
     if (document.activeElement && document.activeElement.matches('input, textarea')) return;
 
-    isBarsVisible = false;
-    const totalHeight = (navbarHeight || 48) + (cachedTabbar ? (tabbarHeight || 44) : 0);
-
-    if (cachedNavbar) {
-      cachedNavbar.style.transform = `translateY(-${totalHeight + 12}px)`;
-    }
-    if (cachedTabbar) {
-      cachedTabbar.style.transform = `translateY(-${totalHeight + 12}px)`;
-    }
-
-    getCustomButtons().forEach(btn => {
-      btn.style.transform = `translateY(-${totalHeight + 12}px)`;
+    isHidden = true;
+    const els = getNavElements();
+    els.forEach(el => {
+      el.classList.add('fbn-nav-transition');
+      el.classList.remove('fbn-nav-visible');
+      el.classList.add('fbn-nav-hidden');
     });
   }
 
-  function setupElements() {
-    const { navbar, tabbar, scroller, isDesktop } = findElements();
-    cachedNavbar = navbar;
-    cachedTabbar = tabbar;
-    cachedScroller = scroller;
-
-    if (isDesktop && navbar) {
-      navbar.style.position = 'fixed';
-      navbar.style.top = '0';
-      navbar.style.left = '0';
-      navbar.style.width = '100%';
-      navbar.style.zIndex = '1000';
-      navbar.style.transition = TRANSITION;
-      return;
-    }
-
-    if (navbar) {
-      const h = parseFloat(getComputedStyle(navbar).height) || parseFloat(navbar.style.height) || 0;
-      if (h > 20) navbarHeight = h;
-
-      Object.assign(navbar.style, {
-        position: 'fixed',
-        top: '0',
-        left: '0',
-        width: '100%',
-        zIndex: '1000',
-        pointerEvents: 'auto',
-        transition: TRANSITION,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-      });
-    }
-
-    if (tabbar) {
-      const th = parseFloat(getComputedStyle(tabbar).height) || parseFloat(tabbar.style.height) || 0;
-      if (th > 20) tabbarHeight = th;
-
-      Object.assign(tabbar.style, {
-        position: 'fixed',
-        top: `${navbarHeight}px`,
-        left: '0',
-        width: '100%',
-        zIndex: '999',
-        pointerEvents: 'auto',
-        transition: TRANSITION,
-        boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
-      });
-    }
-
-    getCustomButtons().forEach(btn => {
-      btn.style.transition = TRANSITION;
-    });
-
-    const totalHeight = (navbar ? navbarHeight : 0) + (tabbar ? tabbarHeight : 0);
-
-    if (scroller && totalHeight > 0) {
-      const scrollContent = scroller.querySelector(':scope > div:not(.pull-to-refresh-spinner-container)');
-      if (scrollContent) {
-        scrollContent.style.marginTop = `${totalHeight}px`;
-      } else {
-        scroller.style.paddingTop = `${totalHeight}px`;
-      }
-      if (window.isFeed?.()) scroller.style.paddingBottom = '0';
-    } else if (totalHeight > 0) {
-      document.body.style.paddingTop = `${totalHeight}px`;
-    }
-
-    Object.assign(document.body.style, {
-      marginTop: '0',
-      overflow: 'visible',
-      height: '100%'
-    });
-  }
-
-  // Handle scroll delta
-  function onScrollDelta(delta) {
+  function handleScrollUpdate() {
     const currentY = getScrollTop();
 
-    // Always show when near top
+    // At top -> Always show
     if (currentY <= 25) {
-      showBars();
-      scrollUpDistance = 0;
-      scrollDownDistance = 0;
+      showNavbar();
+      scrollUpDelta = 0;
+      scrollDownDelta = 0;
+      lastScrollY = currentY;
       return;
     }
 
-    if (delta > 0) {
-      // Scrolling DOWN into feed -> hide bars for fullscreen
-      scrollDownDistance += delta;
-      scrollUpDistance = 0;
-      if (scrollDownDistance > 16) {
-        hideBars();
+    const diff = currentY - lastScrollY;
+    lastScrollY = currentY;
+
+    if (diff > 5) {
+      // Scrolling DOWN
+      scrollDownDelta += diff;
+      scrollUpDelta = 0;
+      if (scrollDownDelta > 20) {
+        hideNavbar();
       }
-    } else if (delta < 0) {
-      // Scrolling UP towards top -> stylishly show bars
-      scrollUpDistance += Math.abs(delta);
-      scrollDownDistance = 0;
-      if (scrollUpDistance > 8) {
-        showBars();
+    } else if (diff < -5) {
+      // Scrolling UP (even slight scroll up)
+      scrollUpDelta += Math.abs(diff);
+      scrollDownDelta = 0;
+      if (scrollUpDelta > 10) {
+        showNavbar();
       }
     }
   }
 
-  // Scroll listener
-  function handleScroll() {
-    const currentY = getScrollTop();
-    const delta = currentY - lastScrollY;
-    lastScrollY = currentY;
-    onScrollDelta(delta);
-  }
-
-  // Touch listener for instant responsive feedback on mobile
+  // Touch listener for instant tactile scroll-up response on touchscreens
   let touchStartY = 0;
   window.addEventListener('touchstart', (e) => {
     if (e.touches.length === 1) {
@@ -217,17 +152,25 @@
   window.addEventListener('touchmove', (e) => {
     if (e.touches.length === 1) {
       const touchY = e.touches[0].clientY;
-      const delta = touchStartY - touchY; // positive = swipe up = scroll down
+      const swipeDelta = touchY - touchStartY; // positive = finger moved down = user scrolling UP
+      if (swipeDelta > 12 && isHidden) {
+        // Finger moved down by 12px -> INSTANTLY SHOW NAVBAR!
+        showNavbar();
+        scrollDownDelta = 0;
+        scrollUpDelta = 0;
+      } else if (swipeDelta < -25 && !isHidden && getScrollTop() > 30) {
+        // Finger moved up by 25px -> hide navbar
+        hideNavbar();
+        scrollDownDelta = 0;
+        scrollUpDelta = 0;
+      }
       touchStartY = touchY;
-      onScrollDelta(delta);
     }
   }, { passive: true });
 
-  window.addEventListener('scroll', handleScroll, { passive: true });
-  document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+  window.addEventListener('scroll', handleScrollUpdate, { passive: true });
+  document.addEventListener('scroll', handleScrollUpdate, { passive: true, capture: true });
 
-  setupElements();
-  new MutationObserver(() => {
-    setupElements();
-  }).observe(document.body, { childList: true, subtree: true });
+  // Initial show
+  setTimeout(showNavbar, 500);
 })();

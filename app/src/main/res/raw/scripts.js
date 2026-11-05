@@ -3,8 +3,10 @@
 (() => {
     window.isDesktopMode = () => {
         return document.querySelector('html[id="facebook"]') !== null;
-    }
+    };
+    window.isDesktop = window.isDesktopMode;
 })();
+var isDesktopMode = function() { return window.isDesktopMode ? window.isDesktopMode() : false; };
 
 // Feed identifier
 (() => {
