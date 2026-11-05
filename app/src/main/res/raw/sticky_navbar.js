@@ -1,112 +1,233 @@
+// =========================================================================
+// Smart Auto-Hiding & Quick-Return Navbar (Facebook N)
+// - Fullscreen while scrolling down into feed
+// - Stylishly slides down on slight scroll-up for instant access to notifications & menu
+// =========================================================================
 (function() {
+  const TRANSITION = 'transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.2s ease';
+  let isBarsVisible = true;
+  let lastScrollY = 0;
+  let scrollUpDistance = 0;
+  let scrollDownDistance = 0;
 
-    if (window.isDesktopMode()) {
-        (() => {
-          const waitForBanner = () => new Promise(resolve => {
-            const existing = document.querySelector('div[role="banner"]');
-            if (existing) return resolve(existing);
+  let cachedNavbar = null;
+  let cachedTabbar = null;
+  let cachedScroller = null;
+  let navbarHeight = 44;
+  let tabbarHeight = 44;
 
-            new MutationObserver((mutations, obs) => {
-              for (const { addedNodes } of mutations) {
-                for (const node of addedNodes) {
-                  if (node.nodeType === 1 && node.matches('div[role="banner"]')) {
-                    obs.disconnect();
-                    return resolve(node);
-                  }
-                }
-              }
-            }).observe(document.body, { childList: true, subtree: true });
-          });
-
-          const forceFixed = el => {
-            if (el?.classList.contains('xixxii4')) {
-              el.style.setProperty('position', 'fixed', 'important');
-            }
-          };
-
-          waitForBanner().then(banner => {
-            const style = document.createElement('style');
-            style.textContent = `
-              div[role="banner"].xixxii4,
-              div[role="banner"] .xixxii4 {
-                position: fixed !important;
-              }
-            `;
-            document.head.appendChild(style);
-
-            forceFixed(banner);
-            banner.querySelectorAll('.xixxii4').forEach(forceFixed);
-
-            new MutationObserver(mutations => {
-              for (const m of mutations) {
-                if (m.type === 'childList') {
-                  m.addedNodes.forEach(n => {
-                    forceFixed(n);
-                    n.querySelectorAll?.('.xixxii4')?.forEach(forceFixed);
-                  });
-                } else if (m.type === 'attributes' && m.attributeName === 'class') {
-                  forceFixed(m.target);
-                }
-              }
-            }).observe(banner, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-          });
-        })();
-        return;
+  function findElements() {
+    if (window.isDesktopMode?.()) {
+      const banner = document.querySelector('div[role="banner"]');
+      return { navbar: banner, tabbar: null, isDesktop: true };
     }
 
-    const applyStyles = () => {
-        const navbar = document.querySelector('div[data-tti-phase="-1"][data-mcomponent="MContainer"][data-type="container"][data-focusable="true"].m');
-        const tabbar = document.querySelector('div[role="tablist"][data-tti-phase="-1"][data-type="container"][data-mcomponent="MContainer"].m');
-        const scroller = document.querySelector('div[data-type="vscroller"][data-is-pull-to-refresh-allowed="true"]');
+    // Top Header / Navbar (Facebook logo, search, icons)
+    const navbar = document.querySelector('div[data-tti-phase="-1"][data-mcomponent="MContainer"][data-type="container"][data-focusable="true"].m') ||
+                   document.querySelector('div[role="banner"]') ||
+                   document.querySelector('div[data-mcomponent="MContainer"]:has(input[type="search"])') ||
+                   document.querySelector('header');
 
-        const hasLogo = navbar?.querySelector('div[aria-label*="Facebook"]');
-        const hasFeed = tabbar?.querySelector('div[aria-label*="feed"]');
+    // Tabbar (Feed, Friends, Messages, Notifications, Video, Menu tabs)
+    const tabbar = document.querySelector('div[role="tablist"][data-tti-phase="-1"][data-type="container"][data-mcomponent="MContainer"].m') ||
+                   document.querySelector('div[role="tablist"]') ||
+                   document.querySelector('div[data-mcomponent="MContainer"]:has(div[role="tab"])');
 
-        const navbarHeight = navbar ? parseFloat(getComputedStyle(navbar).height) || parseFloat(navbar.style.height) || 0 : 0;
-        const tabbarHeight = tabbar ? parseFloat(getComputedStyle(tabbar).height) || parseFloat(tabbar.style.height) || 0 : 0;
+    // Scroller container
+    const scroller = document.querySelector('div[data-type="vscroller"][data-is-pull-to-refresh-allowed="true"]') ||
+                     document.querySelector('div[data-type="vscroller"]');
 
-        if (hasLogo) Object.assign(navbar.style, {
-            position: 'fixed',
-            top: '0',
-            left: '0',
-            width: '100%',
-            zIndex: '1000',
-            pointerEvents: 'auto'
-        });
+    return { navbar, tabbar, scroller, isDesktop: false };
+  }
 
-        if (hasFeed) Object.assign(tabbar.style, {
-            position: 'fixed',
-            top: hasLogo ? navbarHeight + 'px' : '',
-            left: '0',
-            width: '100%',
-            zIndex: '999',
-            pointerEvents: 'auto'
-        });
+  function getScrollTop() {
+    const docTop = document.documentElement ? document.documentElement.scrollTop : 0;
+    const bodyTop = document.body ? document.body.scrollTop : 0;
+    const vscroller = cachedScroller || document.querySelector('div[data-type="vscroller"]');
+    const vscrollerTop = vscroller ? vscroller.scrollTop : 0;
+    return Math.max(window.scrollY || 0, docTop, bodyTop, vscrollerTop);
+  }
 
-        if (scroller) {
-            const offset = (hasLogo ? navbarHeight : 0) + (hasFeed ? tabbarHeight : 0);
-            const scrollContent = scroller.querySelector(':scope > div:not(.pull-to-refresh-spinner-container)');
-            scrollContent ? scrollContent.style.marginTop = offset + 'px' : scroller.style.paddingTop = offset + 'px';
+  function getCustomButtons() {
+    return [
+      document.getElementById('custom-settings-btn'),
+      document.getElementById('custom-account-btn')
+    ].filter(Boolean);
+  }
 
-            if (window.isFeed()) scroller.style.paddingBottom = '0';
+  function showBars() {
+    if (isBarsVisible) return;
+    isBarsVisible = true;
 
-            const spinnerContainer = scroller.querySelector('.pull-to-refresh-spinner-container');
-            if (spinnerContainer) Object.assign(spinnerContainer.style, {
-                zIndex: '1001',
-            });
+    if (cachedNavbar) {
+      cachedNavbar.style.transform = 'translateY(0)';
+      cachedNavbar.style.opacity = '1';
+    }
+    if (cachedTabbar) {
+      cachedTabbar.style.transform = 'translateY(0)';
+      cachedTabbar.style.opacity = '1';
+    }
 
-            const spinner = scroller.querySelector('.pull-to-refresh-spinner');
-            if (spinner) spinner.style.margin = '0 auto';
-        }
+    getCustomButtons().forEach(btn => {
+      btn.style.transform = 'translateY(0)';
+      btn.style.opacity = '1';
+    });
+  }
 
-        Object.assign(document.body.style, {
-            paddingTop: '0',
-            marginTop: '0',
-            overflow: 'visible',
-            height: '100%'
-        });
-    };
+  function hideBars() {
+    if (!isBarsVisible) return;
 
-    applyStyles();
-    new MutationObserver(applyStyles).observe(document.body, { childList: true, subtree: true });
+    // Do not hide if at top or typing in search/input
+    if (getScrollTop() <= 20) return;
+    if (document.activeElement && document.activeElement.matches('input, textarea')) return;
+
+    isBarsVisible = false;
+    const totalHeight = (navbarHeight || 48) + (cachedTabbar ? (tabbarHeight || 44) : 0);
+
+    if (cachedNavbar) {
+      cachedNavbar.style.transform = `translateY(-${totalHeight + 12}px)`;
+    }
+    if (cachedTabbar) {
+      cachedTabbar.style.transform = `translateY(-${totalHeight + 12}px)`;
+    }
+
+    getCustomButtons().forEach(btn => {
+      btn.style.transform = `translateY(-${totalHeight + 12}px)`;
+    });
+  }
+
+  function setupElements() {
+    const { navbar, tabbar, scroller, isDesktop } = findElements();
+    cachedNavbar = navbar;
+    cachedTabbar = tabbar;
+    cachedScroller = scroller;
+
+    if (isDesktop && navbar) {
+      navbar.style.position = 'fixed';
+      navbar.style.top = '0';
+      navbar.style.left = '0';
+      navbar.style.width = '100%';
+      navbar.style.zIndex = '1000';
+      navbar.style.transition = TRANSITION;
+      return;
+    }
+
+    if (navbar) {
+      const h = parseFloat(getComputedStyle(navbar).height) || parseFloat(navbar.style.height) || 0;
+      if (h > 20) navbarHeight = h;
+
+      Object.assign(navbar.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        width: '100%',
+        zIndex: '1000',
+        pointerEvents: 'auto',
+        transition: TRANSITION,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+      });
+    }
+
+    if (tabbar) {
+      const th = parseFloat(getComputedStyle(tabbar).height) || parseFloat(tabbar.style.height) || 0;
+      if (th > 20) tabbarHeight = th;
+
+      Object.assign(tabbar.style, {
+        position: 'fixed',
+        top: `${navbarHeight}px`,
+        left: '0',
+        width: '100%',
+        zIndex: '999',
+        pointerEvents: 'auto',
+        transition: TRANSITION,
+        boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+      });
+    }
+
+    getCustomButtons().forEach(btn => {
+      btn.style.transition = TRANSITION;
+    });
+
+    const totalHeight = (navbar ? navbarHeight : 0) + (tabbar ? tabbarHeight : 0);
+
+    if (scroller && totalHeight > 0) {
+      const scrollContent = scroller.querySelector(':scope > div:not(.pull-to-refresh-spinner-container)');
+      if (scrollContent) {
+        scrollContent.style.marginTop = `${totalHeight}px`;
+      } else {
+        scroller.style.paddingTop = `${totalHeight}px`;
+      }
+      if (window.isFeed?.()) scroller.style.paddingBottom = '0';
+    } else if (totalHeight > 0) {
+      document.body.style.paddingTop = `${totalHeight}px`;
+    }
+
+    Object.assign(document.body.style, {
+      marginTop: '0',
+      overflow: 'visible',
+      height: '100%'
+    });
+  }
+
+  // Handle scroll delta
+  function onScrollDelta(delta) {
+    const currentY = getScrollTop();
+
+    // Always show when near top
+    if (currentY <= 25) {
+      showBars();
+      scrollUpDistance = 0;
+      scrollDownDistance = 0;
+      return;
+    }
+
+    if (delta > 0) {
+      // Scrolling DOWN into feed -> hide bars for fullscreen
+      scrollDownDistance += delta;
+      scrollUpDistance = 0;
+      if (scrollDownDistance > 16) {
+        hideBars();
+      }
+    } else if (delta < 0) {
+      // Scrolling UP towards top -> stylishly show bars
+      scrollUpDistance += Math.abs(delta);
+      scrollDownDistance = 0;
+      if (scrollUpDistance > 8) {
+        showBars();
+      }
+    }
+  }
+
+  // Scroll listener
+  function handleScroll() {
+    const currentY = getScrollTop();
+    const delta = currentY - lastScrollY;
+    lastScrollY = currentY;
+    onScrollDelta(delta);
+  }
+
+  // Touch listener for instant responsive feedback on mobile
+  let touchStartY = 0;
+  window.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1) {
+      const touchY = e.touches[0].clientY;
+      const delta = touchStartY - touchY; // positive = swipe up = scroll down
+      touchStartY = touchY;
+      onScrollDelta(delta);
+    }
+  }, { passive: true });
+
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  document.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+
+  setupElements();
+  new MutationObserver(() => {
+    setupElements();
+  }).observe(document.body, { childList: true, subtree: true });
 })();

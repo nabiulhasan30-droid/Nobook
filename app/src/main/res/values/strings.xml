@@ -6,7 +6,7 @@
     <string name="copy_to_clipboard_title">Copy to clipboard</string>
     <string name="desktop_layout_title">Desktop layout</string>
     <string name="immersive_mode_title">Immersive mode</string>
-    <string name="sticky_navbar_title">Sticky Navbar</string>
+    <string name="sticky_navbar_title">Smart Auto-Hiding Navbar</string>
     <string name="pinch_to_zoom_title">Pinch to zoom</string>
     <string name="amoled_black_title">AMOLED Black</string>
     <string name="customize_feed_title">Customize feed</string>
@@ -27,7 +27,7 @@
     <string name="people_you_may_know">People you may know</string>
     <string name="groups">Groups</string>
     <string name="enable_pure_black_theme_for_amoled_displays">Enable pure black theme. Needs \'Dark mode\' to work</string>
-    <string name="keep_the_navigation_bar_visible_while_scrolling">Keep the navigation bar visible while scrolling</string>
+    <string name="keep_the_navigation_bar_visible_while_scrolling">Fullscreen when scrolling down; stylishly slides down when scrolling up</string>
     <string name="hide_system_bars_for_a_fullscreen_experience">Hide system bars for a fullscreen experience</string>
     <string name="force_desktop_layout_may_not_be_suitable_for_smaller_display">Force desktop layout. Not suitable for small display.</string>
     <string name="use_two_fingers_to_zoom_in_or_out">Use two fingers to zoom in or out</string>

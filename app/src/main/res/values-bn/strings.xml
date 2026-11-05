@@ -5,7 +5,7 @@
     <string name="download_content_title">কনটেন্ট ডাউনলোড করুন</string>
     <string name="desktop_layout_title">ডেস্কটপ বিন্যাস</string>
     <string name="immersive_mode_title">ইমার্সিভ মোড</string>
-    <string name="sticky_navbar_title">স্থির নেভিগেশন বার</string>
+    <string name="sticky_navbar_title">স্মার্ট অটো-হাইড নেভিগেশন বার</string>
     <string name="pinch_to_zoom_title">পিঞ্চ টু জুম</string>
     <string name="amoled_black_title">অ্যামোলেড ব্ল্যাক</string>
     <string name="customize_feed_title">ফিড কাস্টমাইজ করুন</string>
@@ -21,7 +21,7 @@
     <string name="people_you_may_know">যারা আপনি চিনতে পারেন</string>
     <string name="groups">গ্রুপ</string>
     <string name="enable_pure_black_theme_for_amoled_displays">শুদ্ধ কালো থিম চালু করুন। \'ডার্ক মোড\' প্রয়োজন।</string>
-    <string name="keep_the_navigation_bar_visible_while_scrolling">স্ক্রল করার সময় নেভিগেশন বার দৃশ্যমান রাখুন</string>
+    <string name="keep_the_navigation_bar_visible_while_scrolling">নিচে স্ক্রল করলে ফুল স্ক্রিন, সামান্য উপরে স্ক্রল করলেই স্টাইলিশ ভাবে উপরের বার দেখাবে</string>
     <string name="hide_system_bars_for_a_fullscreen_experience">পূর্ণস্ক্রিন অভিজ্ঞতার জন্য সিস্টেম বার লুকান</string>
     <string name="force_desktop_layout_may_not_be_suitable_for_smaller_display">ডেস্কটপ বিন্যাস বাধ্যতামূলক করুন। ছোট ডিসপ্লের জন্য উপযুক্ত নাও হতে পারে।</string>
     <string name="use_two_fingers_to_zoom_in_or_out">জুম করতে দুই আঙুল ব্যবহার করুন</string>
